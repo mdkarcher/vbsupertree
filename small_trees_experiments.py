@@ -41,8 +41,8 @@ Counter(frozenset(Counter(counters[key].values()).items()) for key in counters)
 
 # Experiment 3
 
-X = "ABCDE"
-ambig = 2
+X = "ABCD"
+ambig = 1
 # restrictions = combinations(combinations(X, len(X)-ambig), 2)
 restrictions = full_cover_restrictions(X, ambig)
 restriction = next(restrictions)
@@ -54,7 +54,7 @@ result_keys = list(result.keys())
 
 for i, key in enumerate(result_keys): print(f"{i}: {len(result[key].treelist)}")
 
-i = 1
+i = 4
 print(result[result_keys[i]].proj1)
 print(result[result_keys[i]].proj2)
 for tree in result[result_keys[i]].treelist: print(tree)
@@ -498,4 +498,26 @@ big_tree_ids2 = set().union(*(groupings2[groupings1_keys[i]] for i in ids2))
 len(big_tree_ids1 & big_tree_ids2)
 
 # TODO: get mutual trees via enumerating all trees and via manifest mutualization
+
+# Experiment 14 (What is the smallest pair of trees, such that when you
+# union their subsplits, you get virtual trees?)
+
+X = "ABCDE"
+tree_pairs = combinations(generate_rooted(X), 2)
+
+found_one = False
+tree_list_lens = []
+for tree1, tree2 in tree_pairs:
+    manifest1 = get_subsplit_manifest(tree1)
+    manifest2 = get_subsplit_manifest(tree2)
+    merged_manifest = merge_manifests((manifest1, manifest2))
+    new_tree_list = possible_single_tree_manifests(merged_manifest)
+    tree_list_lens.append(len(new_tree_list))
+    if not found_one and len(new_tree_list) > 2:
+        found_one = True
+        print("Found one!")
+        print(tree1)
+        print(tree2)
+max(tree_list_lens)
+Counter(tree_list_lens)
 
