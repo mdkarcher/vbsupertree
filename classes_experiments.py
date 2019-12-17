@@ -1470,6 +1470,119 @@ true_tree.kl_divergence(est_tree)
 [reference.kl_divergence(ccd.restrict(restriction)) for (reference, restriction) in zip(references, restrictions)]
 # references[0].kl_divergence(ccd.restrict(restrictions[0]))
 
+# Degrees of freedom experiment
+
+reload(classes)
+from classes import *
+
+
+X = Clade("ABCDEFG")
+Xbar = Clade("ABCDEF")
+
+ccd = CCDSet.random(X)
+ccd_small = CCDSet.random(Xbar)
+
+ccd.degrees_of_freedom()
+ccd_small.degrees_of_freedom()
+
+len(ccd)
+len(ccd_small)
+
+
+
+# Non-dense Support experiment
+
+reload(classes)
+from classes import *
+
+
+taxon_set1 = Clade("ABCDE")
+taxon_set2 = Clade("CDEFG")
+
+ccd1 = CCDSet.random(taxon_set1, concentration=0.3, cutoff=0.1)
+len(ccd1)
+len(ccd1.tree_distribution())
+ccd2 = CCDSet.random(taxon_set2, concentration=0.3, cutoff=0.1)
+len(ccd2)
+len(ccd2.tree_distribution())
+
+support1 = ccd1.support()
+len(support1)
+support2 = ccd2.support()
+len(support2)
+
+mutual_support = support1.mutualize(support2)
+len(mutual_support)
+len(mutual_support.all_trees())
+
+mutual_starting_ccd = CCDSet.random_from_support(mutual_support)
+len(mutual_starting_ccd)
+len(mutual_starting_ccd.tree_distribution())
+
+# PCMiniSet experiments
+
+from collections import Counter
+
+reload(classes)
+from classes import *
+
+pcm = PCMiniSet(Subsplit("ABC", "DEF"))
+pcm.add(Subsplit("AB", "C"), 0.5)
+pcm.add(Subsplit("A", "BC"), 0.5)
+pcm.add(Subsplit("D", "EF"), 0.2)
+pcm.add(Subsplit("DE", "F"), 0.8)
+pcm.check()
+
+pcm.normalize()
+pcm.left.check()
+pcm.right.check()
+pcm.check()
+
+pcm.sample()
+pcm.left.sample()
+
+left_sample = [pcm.left.sample() for _ in range(100)]
+Counter(left_sample)
+
+right_sample = [pcm.right.sample() for _ in range(100)]
+Counter(right_sample)
+
+Counter(pcm.right.sample() for _ in range(100))
+
+# True reference test
+
+from importlib import reload
+import numpy as np
+import classes
+reload(classes)
+from classes import *
+
+
+X = Clade("ABCDEFG")
+restrictions = [Clade("ABCDE"), Clade("CDEFG"), Clade("ABDFG")]
+
+true_ccd = CCDSet.random(X)
+references = [true_ccd.restrict(restriction) for restriction in restrictions]
+
+starting_ccd = CCDSet.random(X)
+true_ccd.kl_divergence(starting_ccd)
+
+[reference.kl_divergence(starting_ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+
+ccd, kl_list, true_kl_list = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+
+np.round(np.array(true_kl_list), 3)
+
+kl_list[0] - kl_list[-1]
+true_kl_list[0] - true_kl_list[-1]
+
+true_ccd.kl_divergence(ccd)
+ccd.kl_divergence(true_ccd)
+
+true_tree = true_ccd.tree_distribution()
+est_tree = ccd.tree_distribution()
+true_tree.kl_divergence(est_tree)
+
 
 
 
