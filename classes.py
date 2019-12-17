@@ -489,6 +489,12 @@ class SubsplitSupport:
             return False
         return self.to_set() == other.to_set()
 
+    def __len__(self):
+        result = 0
+        for clade in self.data:
+            result += len(self.data[clade])
+        return result
+
     def add(self, subsplit):
         if not isinstance(subsplit, Subsplit):
             print("Error: Argument subsplit not class Subsplit")
@@ -1140,6 +1146,9 @@ class ProbabilityDistribution(collections.abc.MutableMapping):
     def copy(self):
         return self.__copy__()
 
+    def degrees_of_freedom(self):
+        return len(self) - 1
+
     def get(self, item, log=False):
         if log:
             return self.get_log(item)
@@ -1157,7 +1166,7 @@ class ProbabilityDistribution(collections.abc.MutableMapping):
         return self.params.get(item)
 
     def items(self, log=False):
-        self._require_normalization()
+        # self._require_normalization()
         if log:
             return self.params.items()
         else:
@@ -1316,145 +1325,18 @@ class ProbabilityDistribution(collections.abc.MutableMapping):
         return pr
 
 
-class ProbabilityDistributionOld(collections.Mapping):
-    def __init__(self, arg=None):
-        self.data = dict()
-        self.update(arg)
-
-    def __contains__(self, item):
-        return self.data.__contains__(item)
-
-    def __eq__(self, other):
-        return self.items() == other.items()
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __getitem__(self, item):
-        return self.data.get(item, 0.0)
-
-    def __iter__(self):
-        return iter(self.data.keys())
-
-    def __len__(self):
-        return len(self.data)
-
-    def __setitem__(self, item, probability):
-        self.set(item, probability)
-
-    def __repr__(self):
-        return "ProbabilityDistribution("+repr(self.data)+")"
-
-    def __str__(self):
-        strs = [str(key) + ": " + str(round(self[key], 4)) for key in self]
-        return "{" + ", ".join(strs) + "}"
-
-    def add(self, item, probability):
-        if not (0 <= probability <= 1):
-            print(f"Error: probability ({probability}) out of bounds [0, 1]")
-            return
-        if item not in self:
-            self[item] = 0.0
-        self[item] += probability
-
-    def check(self):
-        return (all(0 <= prob <= 1 for prob in self.data.values())
-                and sum(self.data.values()) == 1.0)
-
-    def get(self, item):
-        return self.data.get(item, 0.0)
-
-    def remove(self, item):
-        self.data.pop(item, None)
-
-    def sample(self):
-        items, probabilities = zip(*self.data.items())
-        return random.choices(population=items, weights=probabilities)[0]
-
-    def samples(self, k=1):
-        items, probabilities = zip(*self.data.items())
-        return random.choices(population=items, weights=probabilities, k=k)
-
-    def set(self, item, probability):
-        if not (0 <= probability <= 1):
-            print(f"Error: probability ({probability}) out of bounds [0, 1]")
-            return
-        self.data[item] = probability
-
-    def support(self):
-        return {item for item in self.data if self.data[item] > 0.0}
-
-    def update(self, arg=None):
-        if arg is None:
-            return
-        if not isinstance(arg, collections.Mapping):
-            print("Argument arg not a Mapping.")
-            return
-        for item in arg:
-            self.set(item, arg[item])
-
-    def keys(self):
-        return self.data.keys()
-
-    def values(self):
-        return self.data.values()
-
-    def items(self):
-        return self.data.items()
-
-    def normalize(self):
-        norm = sum(self.values())
-        return ProbabilityDistribution({item: prob / norm for item, prob in self.items()})
-
-    def trim_small(self, cutoff):
-        return ProbabilityDistribution({item: prob for item, prob in self.items() if prob > cutoff})
-
-    def likelihood(self, item):
-        return self.get(item)
-
-    def log_likelihood(self, item):
-        lik = self.likelihood(item)
-        if lik > 0.0:
-            return math.log(lik)
-        else:
-            return -math.inf
-
-    def max_item(self):
-        return max(self.items(), key=itemgetter(1))
-
-    def max_likelihood(self):
-        return self.max_item()[0]
-
-    def kl_divergence(self, other):
-        result = 0.0
-        for item in self:
-            log_p = self.log_likelihood(item)
-            log_q = other.log_likelihood(item)
-            p = math.exp(log_p)
-            if p > 0.0:
-                result += -p*(log_q - log_p)
-        return result
-
-    @staticmethod
-    def random(support, concentration=1.0, cutoff=0.0):
-        distribution = np.random.dirichlet([concentration] * len(support))
-        pr = ProbabilityDistribution({item: prob for item, prob in zip(support, distribution)})
-        pr = pr.trim_small(cutoff)
-        pr = pr.normalize()
-        return pr
-
-
 class PCMiniSet:
     def __init__(self, parent, arg=None):
-        assert isinstance(parent, Subsplit)
+        if not isinstance(parent, Subsplit):
+            raise TypeError("Argument 'parent' not an instance of type 'Subsplit'.")
         self.parent = parent
         self.left = ProbabilityDistribution()
         self.right = ProbabilityDistribution()
         self.update(arg)
 
-    # @property
-    # def data(self):
-    #     return self.left | self.right
+    @property
+    def data(self):
+        return dict(self.left.items() | self.right.items())
 
     def __repr__(self):
         pretty_repr = pprint.pformat(self.data)
@@ -1465,7 +1347,7 @@ class PCMiniSet:
         return join_str.join((f"PCMiniSet({repr(self.parent)}, ", pretty_repr, ")"))
 
     def __str__(self):
-        return str(self.parent) + ": " + ", ".join(str(child) for child in self.data)
+        return str(self.parent) + ": " + str(self.left) + " " + str(self.right)
 
     def __iter__(self):
         yield from iter(self.data)
@@ -1480,40 +1362,70 @@ class PCMiniSet:
         else:
             raise KeyError
 
+    def __len__(self):
+        return len(self.left) + len(self.right)
+
     def add(self, subsplit, probability):
-        assert isinstance(subsplit, Subsplit)
+        if not isinstance(subsplit, Subsplit):
+            raise TypeError("Argument 'subsplit' not an instance of type 'Subsplit'.")
         clade = subsplit.clade()
         if clade == self.parent.clade1:
-            self.left.add(subsplit)
+            self.left.add(subsplit, probability)
         elif clade == self.parent.clade2:
-            self.right.add(subsplit)
+            self.right.add(subsplit, probability)
         else:
-            print(f"Error: subsplit ({str(subsplit)}) is not compatible with either side of parent ({str(self.parent)}). Skipping.")
+            raise ValueError(f"Subsplit ({str(subsplit)}) is not compatible with either side of parent ({str(self.parent)}).")
+
+    def check(self):
+        return self.left.check() and self.right.check()
+
+    def degrees_of_freedom(self):
+        return self.left.degrees_of_freedom() + self.right.degrees_of_freedom()
+
+    def iter_pcss(self):
+        for child in self.left:
+            yield PCSS(self.parent, child)
+        for child in self.right:
+            yield PCSS(self.parent, child)
+
+    def locally_complete(self):
+        return (self.left or len(self.parent.clade1) <= 1) and (self.right or len(self.parent.clade2) <= 1)
+
+    def normalize(self, clade=None):
+        if clade is None:
+            self.left.normalize()
+            self.right.normalize()
+            return
+        clade = Clade(clade)
+        if clade == self.parent.clade1:
+            self.left.normalize()
+        elif clade == self.parent.clade2:
+            self.right.normalize()
+        else:
+            raise ValueError(f"Clade ({str(clade)}) is not either side of parent ({str(self.parent)}).")
 
     def remove(self, subsplit):
-        assert isinstance(subsplit, Subsplit)
+        if not isinstance(subsplit, Subsplit):
+            raise TypeError("Argument 'subsplit' not an instance of type 'Subsplit'.")
         clade = subsplit.clade()
         if clade == self.parent.clade1:
             self.left.remove(subsplit)
         elif clade == self.parent.clade2:
             self.right.remove(subsplit)
         else:
-            print(f"Error: subsplit ({str(subsplit)}) is not compatible with either side of parent ({str(self.parent)}). Skipping.")
+            raise ValueError(f"Subsplit ({str(subsplit)}) is not compatible with either side of parent ({str(self.parent)}).")
+
+    def sample(self):
+        return self.left.sample(), self.right.sample()
+
+    def support(self):
+        return self.left.support() | self.right.support()
 
     def update(self, arg):
         if arg is None:
             return
         for item in arg:
             self.add(item, arg[item])
-
-    def locally_complete(self):
-        return (self.left or len(self.parent.clade1) <= 1) and (self.right or len(self.parent.clade2) <= 1)
-
-    def support(self):
-        return self.left.support() | self.right.support()
-
-    def sample(self):
-        return self.left.sample(), self.right.sample()
 
 
 class TreeDistribution(ProbabilityDistribution):
@@ -1748,6 +1660,12 @@ class CCDSet:
     def copy(self):
         return self.__copy__()
 
+    def degrees_of_freedom(self):
+        result = 0
+        for clade in self.clades():
+            result += self[clade].degrees_of_freedom()
+        return result
+
     def get(self, item):
         if isinstance(item, Clade):
             return self.data.get(item, ProbabilityDistribution())
@@ -1809,6 +1727,15 @@ class CCDSet:
         result = 0.0
         for subsplit, cond_prob, joint_prob in self.iter_probabilities():
             result += -joint_prob * (other.get_log(subsplit) - math.log(cond_prob))
+        return result
+
+    def kl_divergence_ccd_verbose(self, other):
+        result = {}
+        for subsplit, cond_prob, joint_prob in self.iter_probabilities():
+            clade = subsplit.clade()
+            if clade not in result:
+                result[clade] = {}
+            result[clade][subsplit] = -joint_prob * (other.get_log(subsplit) - math.log(cond_prob))
         return result
 
     def kl_divergence_treedist(self, other):
@@ -2225,6 +2152,32 @@ class CCDSet:
                 result[wrt] += grad[wrt] * weight
         return result
 
+    def restricted_kl_divergence_gradient_multi_organized(
+            self, others: List['CCDSet'], weights: List[float] = None,
+            c2c: dict = None, restricted_selves: List['CCDSet'] = None
+    ):
+        if weights is None:
+            weights = [1] * len(others)
+        if restricted_selves is None:
+            restricted_selves = []
+            for other in others:
+                restriction = other.root_clade()
+                restricted_selves.append(self.restrict(restriction))
+        assert len(others) == len(weights) == len(restricted_selves)
+        if c2c is None:
+            c2c = self.clade_to_clade_probabilities()
+        result = dict()
+        for other, weight, restricted_self in zip(others, weights, restricted_selves):
+            grad = self.restricted_kl_divergence_gradient(other=other, c2c=c2c, restricted_self=restricted_self)
+            for wrt in grad:
+                clade = wrt.clade()
+                if clade not in result:
+                    result[clade] = dict()
+                if wrt not in result[clade]:
+                    result[clade][wrt] = 0.0
+                result[clade][wrt] += grad[wrt] * weight
+        return result
+
     def update(self, cond_probs):
         if cond_probs is None:
             return
@@ -2259,6 +2212,26 @@ class CCDSet:
         return result
 
     @staticmethod
+    def random_from_support(support: SubsplitSupport, concentration: float = 1.0):
+        result = CCDSet()
+        root_clade = support.root_clade()
+        clade_stack = [root_clade]
+        visited_clades = set()
+        while clade_stack:
+            clade = clade_stack.pop()
+            if clade in visited_clades:
+                continue
+            visited_clades.add(clade)
+            possible_subsplits = list(support[clade])
+            dist = ProbabilityDistribution.random(possible_subsplits, concentration)
+            result.data[clade] = dist
+            for subsplit in dist:
+                for child in subsplit.nontrivial_children():
+                    if child not in visited_clades:
+                        clade_stack.append(child)
+        return result
+
+    @staticmethod
     def from_tree_distribution(tree_distribution):
         result = CCDSet()
         for tree, prob in tree_distribution.items():
@@ -2271,8 +2244,13 @@ class CCDSet:
 
 class SCDSet:
     def __init__(self, cond_probs=None):
-        self.data = defaultdict(ProbabilityDistribution)
+        self.data = dict()
         self.update(cond_probs)
+
+    def __copy__(self):
+        result = SCDSet()
+        for parent in self.parents():
+            result.data[parent] = self.data[parent].copy()
 
     def __eq__(self, other):
         if not isinstance(other, SCDSet):
@@ -2296,79 +2274,65 @@ class SCDSet:
         strs = [str(parent) + ": " + str(self.get(parent)) for parent in sorted(self.parents())]
         return "\n".join(strs)
 
-    # TODO: Update below here
     def __getitem__(self, item):
-        if isinstance(item, Clade):
+        if isinstance(item, Subsplit):
             return self.data[item]
-        if isinstance(item, Subsplit):
-            clade = item.clade()
-            return self.data[clade][item]
+        if isinstance(item, PCSS):
+            parent = item.parent
+            child = item.child
+            return self.data[parent][child]
 
-    def add(self, parent, child, probability):
-        if not isinstance(parent, Subsplit):
-            print("Error: Argument parent not class Subsplit")
-            return
-        if not isinstance(child, Subsplit):
-            print("Error: Argument child not class Subsplit")
-            return
-        self.data[parent][child] += probability
+    def __len__(self):
+        result = 0
+        for parent in self.parents():
+            result += len(self[parent])
+        return result
 
-    def parents(self):
-        return self.data.keys()
-
-    def remove(self, parent, child):
-        if not isinstance(parent, Subsplit):
-            print("Error: Argument parent not class Subsplit")
-            return
-        if not isinstance(child, Subsplit):
-            print("Error: Argument child not class Subsplit")
-            return
-        self.data[parent].remove(child)
-
-    def set(self, parent, child, probability):
-        if not isinstance(parent, Subsplit):
-            print("Error: Argument parent not class Subsplit")
-            return
-        if not isinstance(child, Subsplit):
-            print("Error: Argument child not class Subsplit")
-            return
-        self.data[parent][child] = probability
-
-    def update(self, parent, cond_probs):
-        if cond_probs is None:
-            return
-        if not isinstance(parent, Subsplit):
-            print("Error: Argument parent not class Subsplit")
-            return
-        if not isinstance(cond_probs, collections.Mapping):
-            print("Error: Argument cond_probs not a Mapping")
-            return
-        for subsplit in cond_probs:
-            if not isinstance(subsplit, Subsplit):
-                print("Warning: Non-Subsplit found in cond_probs, skipping")
-                continue
-            self.data[parent][subsplit] = cond_probs[subsplit]
-
-    def get(self, item):
-        if isinstance(item, Clade):
-            return self.data.get(item, ProbabilityDistribution())
-        if isinstance(item, Subsplit):
-            clade = item.clade()
-            return self.data.get(clade, ProbabilityDistribution()).get(item)
-
-    def get_log(self, item):
-        prob = self.get(item)
-
-        if prob > 0.0:
-            return math.log(prob)
+    # TODO: Update below here
+    def add(self, pcss, value, log=False):
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        if log:
+            self.add_log(pcss, value)
         else:
-            return -math.inf
+            self.add_lin(pcss, value)
 
-    def check_distributions(self):
-        for parent in self.data:
-            if not self.data[parent].check():
-                return False
-        return True
+    def add_lin(self, pcss, prob):
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        if prob == 0.0:
+            return
+        parent = pcss.parent
+        child = pcss.child
+        if parent not in self.data:
+            self.data[parent] = PCMiniSet()
+        self.data[parent].add_lin(child, prob)
+
+    def add_log(self, pcss, log_prob):
+        if not isinstance(pcss, pcss):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        if log_prob == 0.0:
+            return
+        parent = pcss.parent
+        child = pcss.child
+        if parent not in self.data:
+            # self.data[clade] = ProbabilityDistribution()
+            return
+        self.data[parent].add_log(child, log_prob)
+
+    def add_many(self, arg, log=False, scalar=1.0):
+        if log:
+            self.add_many_log(arg, scalar)
+        else:
+            self.add_many_lin(arg, scalar)
+
+    def add_many_lin(self, arg, scalar=1.0):
+        for key in arg:
+            self.add_lin(key, arg[key]*scalar)
+
+    def add_many_log(self, arg, scalar=1.0):
+        for key in arg:
+            self.add_log(key, arg[key]*scalar)
 
     def bad_distributions(self):
         result = set()
@@ -2377,6 +2341,151 @@ class SCDSet:
                 result.add(parent)
         return result
 
+    def check(self):
+        return self.check_distributions() and self.support().is_complete()
+
+    def check_distributions(self):
+        for parent in self.data:
+            if not self.data[parent].check():
+                return False
+        return True
+
+    # TODO: Parallel to clade_probabilities = parent_probabilities
+    # TODO: Parallel to clade_to_clade_probabilities = parent_to_parent_probabilities or subsplit_to_subsplit_probabilities
+    def clade_probabilities(self):
+        result = defaultdict(float)
+        clade_stack = [(self.root_clade(), 1.0)]
+        while clade_stack:
+            clade, prob_so_far = clade_stack.pop()
+            result[clade] += prob_so_far
+            cond_dist = self[clade]
+            for subsplit in cond_dist:
+                new_prob = self[subsplit]
+                for child in subsplit.nontrivial_children():
+                    clade_stack.append((child, prob_so_far * new_prob))
+        return result
+
+    def copy(self):
+        return self.__copy__()
+
+    def degrees_of_freedom(self):
+        result = 0
+        for parent in self.parents():
+            result += self[parent].degrees_of_freedom()
+        return result
+
+    def get(self, item):
+        if isinstance(item, Subsplit):
+            return self.data.get(item, PCMiniSet(item))
+        if isinstance(item, PCSS):
+            parent = item.parent
+            child = item.child
+            return self.data.get(parent, PCMiniSet(parent)).get(child)
+
+    # TODO: Bug here since self.get can return a PCMiniSet
+    def get_log(self, item):
+        prob = self.get(item)
+
+        if prob > 0.0:
+            return math.log(prob)
+        else:
+            return -math.inf
+
+    def is_complete(self):
+        return self.support().is_complete()
+
+    def iter_parents(self):
+        yield from self.parents()
+
+    # TODO: check for usefulness
+    def iter_clades(self):
+        clade_stack = [self.root_clade()]
+        visited_clades = set()
+        while clade_stack:
+            clade = clade_stack.pop()
+            if clade in visited_clades:
+                continue
+            visited_clades.add(clade)
+            yield clade
+
+    # TODO: check for usefulness
+    def iter_subsplits(self):
+        for clade in self.iter_clades():
+            yield from self.data[clade]
+
+    # TODO: Update
+    def iter_probabilities(self):
+        clade_stack = [(self.root_clade(), 1.0)]
+        while clade_stack:
+            clade, clade_prob = clade_stack.pop()
+            cond_dist = self[clade]
+            for subsplit in cond_dist:
+                cond_prob = self[subsplit]
+                joint_prob = clade_prob * cond_prob
+                yield (subsplit, cond_prob, joint_prob)
+                for child in subsplit.nontrivial_children():
+                    clade_stack.append((child, joint_prob))
+
+
+    def iter_pcss(self):
+        for parent in self.iter_parents():
+            yield from self.data[parent].iter_pcss()
+
+    # TODO: Update
+    def iter_unconditional_probabilities(self):
+        clade_stack = [(self.root_clade(), 1.0)]
+        while clade_stack:
+            clade, clade_prob = clade_stack.pop()
+            cond_dist = self[clade]
+            for subsplit in cond_dist:
+                cond_prob = self[subsplit]
+                joint_prob = clade_prob * cond_prob
+                yield (subsplit, joint_prob)
+                for child in subsplit.nontrivial_children():
+                    clade_stack.append((child, joint_prob))
+
+    # TODO: Update
+    def kl_divergence_ccd(self, other):
+        result = 0.0
+        for subsplit, cond_prob, joint_prob in self.iter_probabilities():
+            result += -joint_prob * (other.get_log(subsplit) - math.log(cond_prob))
+        return result
+
+    # TODO: Update
+    def kl_divergence_treedist(self, other):
+        result = 0.0
+        for tree in other:
+            log_q = other.log_likelihood(tree)
+            log_p = self.log_likelihood(tree)
+            result += -math.exp(log_p) * (log_q - log_p)
+        return result
+
+    # TODO: Update
+    def kl_divergence(self, other):
+        if isinstance(other, CCDSet):
+            return self.kl_divergence_ccd(other)
+        if isinstance(other, TreeDistribution):
+            return self.kl_divergence_treedist(other)
+        print("Error: argument 'other' not a CCDNet or TreeDistribution")
+
+    # TODO: Update
+    def log_likelihood(self, tree, strategy='levelorder'):
+        result = 0.0
+        for subsplit in tree.traverse_subsplits(strategy):
+            cond_prob = self[subsplit]
+            if cond_prob > 0.0:
+                result += math.log(cond_prob)
+            else:
+                result += -math.inf
+        return result
+
+    # TODO: Update
+    def likelihood(self, tree, strategy='levelorder'):
+        return math.exp(self.log_likelihood(tree, strategy))
+
+    # TODO: parallel to max_clade_tree
+    # TODO: parallel to max_prob_tree
+
     def normalize(self, parent=None):
         if parent is None:
             for parent in self.data:
@@ -2384,32 +2493,12 @@ class SCDSet:
         elif isinstance(parent, Subsplit) or isinstance(parent, Clade) and parent == self.root_clade():
             self.data[parent] = self.data[parent].normalize()
         else:
-            print("Error: unrecognized argument 'clade'")
+            raise TypeError("Argument 'parent' not None, Subsplit, or root clade")
 
-    def get_taxon_set(self):
-        result = set()
-        for parent in self.data:
-            if isinstance(parent, Subsplit):
-                result |= parent.clade()
-        return set().union(*self.data)
+    def parents(self):
+        return self.data.keys()
 
-    def root_clade(self):
-        return Clade(self.get_taxon_set())
-
-    def is_complete(self):
-        return self.support().is_complete()
-
-    # TODO: Add PCSSSupport and update this function
-    def support(self, include_trivial=False):
-        result = SubsplitSupport(include_trivial=include_trivial)
-        for clade in self.data:
-            # result.add({subsplit for subsplit in self.data[clade] if self.data[clade][subsplit] > 0})
-            result.update(self.data[clade].support())
-        return result
-
-    def check(self):
-        return self.check_distributions() and self.support().is_complete()
-
+    # TODO: parallel to random_tree
     def random_tree(self):
         if not self.is_complete():
             print("Error: CCDSet not complete, no tree possible.")
@@ -2441,11 +2530,69 @@ class SCDSet:
                 node.add_child(name=str(right))
         return tree
 
+    # TODO: Update
+    def remove(self, parent, child):
+        if not isinstance(parent, Subsplit):
+            print("Error: Argument parent not class Subsplit")
+            return
+        if not isinstance(child, Subsplit):
+            print("Error: Argument child not class Subsplit")
+            return
+        self.data[parent].remove(child)
+
+    # TODO: Update
+    def restrict(self, taxon_set, verbose=False):
+        taxon_set = Clade(taxon_set)
+        result = CCDSet()
+        clade_probabilities = self.clade_probabilities()
+        clade_stack = [self.root_clade()]
+        visited_clades = set()
+        for clade, prob in clade_probabilities.items():
+            for subsplit in self[clade]:
+                subsplit_prob = self[subsplit]
+                restricted_subsplit = subsplit.restrict(taxon_set)
+                if not restricted_subsplit.is_trivial():
+                    result.add(restricted_subsplit, clade_probabilities[clade] * subsplit_prob)
+        result.normalize()
+        return result
+
+    def root_clade(self):
+        return Clade(self.taxon_set())
+
+    # TODO: Update
+    def set(self, parent, child, probability):
+        if not isinstance(parent, Subsplit):
+            print("Error: Argument parent not class Subsplit")
+            return
+        if not isinstance(child, Subsplit):
+            print("Error: Argument child not class Subsplit")
+            return
+        self.data[parent][child] = probability
+
+    # TODO: parallels to set functions
+
+    # TODO: Add PCSSSupport and update this function
+    def support(self, include_trivial=False):
+        result = SubsplitSupport(include_trivial=include_trivial)
+        for clade in self.data:
+            # result.add({subsplit for subsplit in self.data[clade] if self.data[clade][subsplit] > 0})
+            result.update(self.data[clade].support())
+        return result
+
+    # TODO: Update?
+    def taxon_set(self):
+        result = set()
+        for parent in self.data:
+            if isinstance(parent, Subsplit):
+                result |= parent.clade()
+        return set().union(*self.data)
+
+    # TODO: Update
     def tree_distribution(self, verbose=False):
         if not self.is_complete():
             print("Error: CCDSet not complete, no tree possible.")
             return
-        root_clade = Clade(self.get_taxon_set())
+        root_clade = self.root_clade()
         tree = MyTree()
         tree.tree.clade = root_clade
         result = TreeDistribution()
@@ -2487,63 +2634,38 @@ class SCDSet:
                     print(f"Pushing tree: {new_tree} with probability {math.exp(new_log_prob)}")
         return result
 
-    def clade_probabilities(self):
+    # TODO: Update
+    def unconditional_probabilities(self):
         result = defaultdict(float)
         clade_stack = [(self.root_clade(), 1.0)]
         while clade_stack:
-            clade, prob_so_far = clade_stack.pop()
-            result[clade] += prob_so_far
+            clade, clade_prob = clade_stack.pop()
             cond_dist = self[clade]
             for subsplit in cond_dist:
-                new_prob = self[subsplit]
+                cond_prob = self[subsplit]
+                joint_prob = clade_prob * cond_prob
+                result[subsplit] += joint_prob
                 for child in subsplit.nontrivial_children():
-                    clade_stack.append((child, prob_so_far * new_prob))
+                    clade_stack.append((child, joint_prob))
         return result
 
-    # def restrict(self, taxon_set, verbose=False):
-    #     taxon_set = Clade(taxon_set)
-    #     result = CCDSet()
-    #     root_clade = Clade(self.get_taxon_set())
-    #     different_stack = [root_clade]
-    #     visited_clades = set()  # Testing this out
-    #     while different_stack:
-    #         base_clade = different_stack.pop()
-    #         if base_clade in visited_clades:  # Testing this out
-    #             continue
-    #         visited_clades.add(base_clade)  # Testing this out
-    #         same_stack = [(base_clade, 1.0)]
-    #         while same_stack:
-    #             clade, base_prob = same_stack.pop()
-    #             for subsplit in self[clade]:
-    #                 subsplit_prob = self[subsplit]
-    #                 clade1, clade2 = subsplit.children()
-    #                 restricted_subsplit = subsplit.restrict(taxon_set)
-    #                 if restricted_subsplit.is_trivial():
-    #                     assert not clade1 & taxon_set or not clade2 & taxon_set
-    #                     equivalent_clade = clade1 if (clade1 & taxon_set) else clade2
-    #                     same_stack.append((equivalent_clade, base_prob * subsplit_prob))
-    #                 else:
-    #                     result.add(restricted_subsplit, base_prob * subsplit_prob)
-    #                     if len(clade1) > 1:
-    #                         different_stack.append(clade1)
-    #                     if len(clade2) > 1:
-    #                         different_stack.append(clade2)
-    #     return result
+    # TODO: Parallels to derivative functions
 
-    def restrict(self, taxon_set, verbose=False):
-        taxon_set = Clade(taxon_set)
-        result = CCDSet()
-        clade_probabilities = self.clade_probabilities()
-        clade_stack = [self.root_clade()]
-        visited_clades = set()
-        for clade, prob in clade_probabilities.items():
-            for subsplit in self[clade]:
-                subsplit_prob = self[subsplit]
-                restricted_subsplit = subsplit.restrict(taxon_set)
-                if not restricted_subsplit.is_trivial():
-                    result.add(restricted_subsplit, clade_probabilities[clade] * subsplit_prob)
-        result.normalize()
-        return result
+    # TODO: Update
+    def update(self, parent, cond_probs):
+        if cond_probs is None:
+            return
+        if not isinstance(parent, Subsplit):
+            print("Error: Argument parent not class Subsplit")
+            return
+        if not isinstance(cond_probs, collections.Mapping):
+            print("Error: Argument cond_probs not a Mapping")
+            return
+        for subsplit in cond_probs:
+            if not isinstance(subsplit, Subsplit):
+                print("Warning: Non-Subsplit found in cond_probs, skipping")
+                continue
+            self.data[parent][subsplit] = cond_probs[subsplit]
 
     @staticmethod
     def random(taxon_set, concentration=1.0, cutoff=0.0):
@@ -2568,92 +2690,6 @@ class SCDSet:
     def from_tree_distribution(tree_distribution):
 
         pass
-
-    def iter_clades(self):
-        clade_stack = [self.root_clade()]
-        visited_clades = set()
-        while clade_stack:
-            clade = clade_stack.pop()
-            if clade in visited_clades:
-                continue
-            visited_clades.add(clade)
-            yield clade
-
-    def iter_subsplits(self):
-        for clade in self.iter_clades():
-            yield from self.data[clade]
-
-    def unconditional_probabilities(self):
-        result = defaultdict(float)
-        clade_stack = [(self.root_clade(), 1.0)]
-        while clade_stack:
-            clade, clade_prob = clade_stack.pop()
-            cond_dist = self[clade]
-            for subsplit in cond_dist:
-                cond_prob = self[subsplit]
-                joint_prob = clade_prob * cond_prob
-                result[subsplit] += joint_prob
-                for child in subsplit.nontrivial_children():
-                    clade_stack.append((child, joint_prob))
-        return result
-
-    def iter_unconditional_probabilities(self):
-        clade_stack = [(self.root_clade(), 1.0)]
-        while clade_stack:
-            clade, clade_prob = clade_stack.pop()
-            cond_dist = self[clade]
-            for subsplit in cond_dist:
-                cond_prob = self[subsplit]
-                joint_prob = clade_prob * cond_prob
-                yield (subsplit, joint_prob)
-                for child in subsplit.nontrivial_children():
-                    clade_stack.append((child, joint_prob))
-
-    def iter_probabilities(self):
-        clade_stack = [(self.root_clade(), 1.0)]
-        while clade_stack:
-            clade, clade_prob = clade_stack.pop()
-            cond_dist = self[clade]
-            for subsplit in cond_dist:
-                cond_prob = self[subsplit]
-                joint_prob = clade_prob * cond_prob
-                yield (subsplit, cond_prob, joint_prob)
-                for child in subsplit.nontrivial_children():
-                    clade_stack.append((child, joint_prob))
-
-    def log_likelihood(self, tree, strategy='levelorder'):
-        result = 0.0
-        for subsplit in tree.traverse_subsplits(strategy):
-            cond_prob = self[subsplit]
-            if cond_prob > 0.0:
-                result += math.log(cond_prob)
-            else:
-                result += -math.inf
-        return result
-
-    def likelihood(self, tree, strategy='levelorder'):
-        return math.exp(self.log_likelihood(tree, strategy))
-
-    def kl_divergence_ccd(self, other):
-        result = 0.0
-        for subsplit, cond_prob, joint_prob in self.iter_probabilities():
-            result += -joint_prob * (other.get_log(subsplit) - math.log(cond_prob))
-        return result
-
-    def kl_divergence_treedist(self, other):
-        result = 0.0
-        for tree in other:
-            log_q = other.log_likelihood(tree)
-            log_p = self.log_likelihood(tree)
-            result += -math.exp(log_p) * (log_q - log_p)
-        return result
-
-    def kl_divergence(self, other):
-        if isinstance(other, CCDSet):
-            return self.kl_divergence_ccd(other)
-        if isinstance(other, TreeDistribution):
-            return self.kl_divergence_treedist(other)
-        print("Error: argument 'other' not a CCDNet or TreeDistribution")
 
 
 def estimate_derivative(prob_of: Subsplit, wrt: Subsplit, ccd: CCDSet, delta: float=0.0001):
@@ -2782,7 +2818,8 @@ def gradient_descent_one(starting: CCDSet, reference: CCDSet, starting_gamma=1.0
     return current, kl_list
 
 
-def gradient_descent(starting: CCDSet, references: List[CCDSet], starting_gamma=1.0, max_iteration=50, verbose=True, const=0.5):
+def gradient_descent(starting: CCDSet, references: List[CCDSet], starting_gamma=1.0, true_reference: CCDSet = None,
+                     max_iteration=50, verbose=True, const=0.5, shrink_factor=0.5, grow_factor=1.1):
     weights = [1] * len(references)
     restrictions = [reference.root_clade() for reference in references]
     current = starting.copy()
@@ -2794,7 +2831,11 @@ def gradient_descent(starting: CCDSet, references: List[CCDSet], starting_gamma=
     current_grad_l2 = l2norm2(current_grad)
     gamma = starting_gamma
     kl_list = [current_kl]
+    if true_reference is not None:
+        true_kl_list = [true_reference.kl_divergence(current)]
     iteration = 0
+    if verbose:
+        print(f"Iter {iteration}: KL={current_kl:8.4g}")
     while iteration < max_iteration:
         iteration += 1
         candidate = current.copy()
@@ -2807,21 +2848,33 @@ def gradient_descent(starting: CCDSet, references: List[CCDSet], starting_gamma=
         # Armijo-Goldstein condition:
         # see https://math.stackexchange.com/questions/373868/optimal-step-size-in-gradient-descent
         if candidate_kl <= current_kl - const*gamma*current_grad_l2:
+            gamma = gamma * grow_factor
+        else:
+            gamma = gamma * shrink_factor
+            if verbose:
+                print(f"Shrinking gamma to {gamma}")
+        if candidate_kl <= current_kl:
             current = candidate
             current_rs = candidate_rs
             current_kl = candidate_kl
             current_c2c = current.clade_to_clade_probabilities()
             current_grad = current.restricted_kl_divergence_gradient_multi(others=references, weights=weights,
-                                                                           c2c=current_c2c, restricted_selves=current_rs)
+                                                                           c2c=current_c2c,
+                                                                           restricted_selves=current_rs)
             current_grad_l2 = l2norm2(current_grad)
-            gamma = gamma * 1.1
+            # if verbose:
+            #     print("Move accepted")
         else:
-            gamma = gamma * 0.5
             if verbose:
-                print(f"Rejected! Shrinking gamma to {gamma}")
+                print("Move rejected!")
         kl_list.append(current_kl)
+        if true_reference is not None:
+            true_kl_list.append(true_reference.kl_divergence(current))
     if verbose:
         print(f"Final KL={current_kl:8.4g}")
-    return current, kl_list
+    if true_reference is not None:
+        return current, kl_list, true_kl_list
+    else:
+        return current, kl_list
 
 
