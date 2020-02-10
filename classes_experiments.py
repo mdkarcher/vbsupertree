@@ -10,1346 +10,10 @@ reload(classes)
 from classes import *
 
 
-def double_check_restriction(ccd, taxon_set):
-    pass
-
-
-ccd = CCDSet({Subsplit("AB", "CD"): 0.4, Subsplit("ABC", "D"): 0.6,
-              Subsplit("AB", "C"): 2/3, Subsplit("A", "BC"): 1/3,
-              Subsplit("A", "B"): 1.0, Subsplit("B", "C"): 1.0,
-              Subsplit("C", "D"): 1.0})
-dist = ccd.tree_distribution()
-print(dist)
-
-res_dist = dist.restrict("ABC")
-print(res_dist)
-
-res_ccd = ccd.restrict("ABC")
-res_ccd.check()
-res_ccd.is_complete()
-res_ccd.check_distributions()
-res_dist2 = res_ccd.tree_distribution()
-print(res_dist2)
-
-clade = Clade("ABC")
-size = len(clade)
-for k in range(1, size // 2 + 1):
-    for left in combinations(clade, k):
-        left_clade = Clade(left)
-        print(left_clade)
-        print(clade - left_clade)
-        print(Subsplit(left_clade, clade - left_clade))
-
-
-list(Subsplit.compatible_subsplits(clade))
-
-ProbabilityDistribution.random("ABCDE", 0.1)
-
-pr = ProbabilityDistribution({"A": 0.4, "B": 0.4})
-pr2 = pr.normalize()
-print(pr2)
-
-
-pr = ProbabilityDistribution.random("ABCDE", concentration=0.1)
-print(pr)
-pr2 = pr.trim_small(0.1).normalize()
-print(pr2)
-
-pr = ProbabilityDistribution.random("ABCDE", concentration=0.1)
-pr2 = ProbabilityDistribution(pr)
-print(pr)
-print(pr2)
-pr == pr2
-
-# CCD Restriction Experiment
-big_clade = "ABCDEF"
-small_clade = "ABC"
-
-ccd = CCDSet.random(big_clade, 1.0, 0.03)
-print(ccd)
-
-dist = ccd.tree_distribution()
-print(dist)
-
-res_dist = dist.restrict(small_clade)
-print(res_dist)
-
-res_ccd = ccd.restrict(small_clade)
-print(res_ccd)
-
-res_dist2 = res_ccd.tree_distribution()
-print(res_dist2)
-
-for tree in res_dist:
-    print(res_dist[tree] - res_dist2[tree])
-res_dist.kl_divergence(res_dist2)
-
-# Restricted CCD Existence Experiment
-
-big_clade = "ABCDEFG"
-small_clade = "ABCD"
-
-ccd = CCDSet.random(big_clade, 1.0, 0.02)
-print(ccd)
-
-ccd.check()
-for bad_clade in ccd.bad_distributions():
-    # print(str(bad_clade) + ": " + str(sum(ccd[bad_clade].values())))
-    print(str(bad_clade) + ": " + str(round(sum(ccd[bad_clade].values()), 9)))
-
-
-dist = ccd.tree_distribution()
-print(dist)
-
-# ccd2 = dist.to_ccd()
-# dist2 = ccd.tree_distribution()
-# for tree in dist:
-#     print(dist[tree] - dist2[tree])
-# dist.kl_divergence(dist2)
-
-res_dist = dist.restrict(small_clade)
-print(res_dist)
-
-res_ccd = res_dist.to_ccd()
-print(res_ccd)
-
-res_dist2 = res_ccd.tree_distribution()
-print(res_dist2)
-
-for tree in res_dist:
-    print(round(res_dist[tree] - res_dist2[tree], 9))
-print(round(res_dist.kl_divergence(res_dist2), 9))
-
-# for tree in res_dist:
-#     print(res_dist[tree] - res_dist2[tree])
-# res_dist.kl_divergence(res_dist2)
-
-alt_res_ccd = ccd.restrict(small_clade)
-for bad_clade in alt_res_ccd.bad_distributions():
-    print(alt_res_ccd[bad_clade])
-    print(sum(alt_res_ccd[bad_clade].values()))
-
-alt_res_dist = alt_res_ccd.tree_distribution()
-
-print("KL: " + str(round(res_dist.kl_divergence(alt_res_dist), 9)))
-
-# Quick-repeat restricted CCD existence experiment
-
-
-def restriction_test_function(big_clade, small_clade, concentration=1.0, cutoff=0.05):
-    ccd = CCDSet.random(big_clade, concentration, cutoff)
-    # print(ccd.check())
-    # for bad_clade in ccd.bad_distributions():
-    #     print(str(bad_clade) + ": " + str(round(sum(ccd[bad_clade].values()), 9)))
-    print(all(round(sum(ccd[bad_clade].values()), 9)==1.0 for bad_clade in ccd.bad_distributions()))
-    dist = ccd.tree_distribution()
-    res_dist = dist.restrict(small_clade)
-    res_ccd = res_dist.to_ccd()
-    res_dist2 = res_ccd.tree_distribution()
-    # for tree in res_dist:
-    #     print(round(abs(res_dist[tree] - res_dist2[tree]), 9))
-    print(all(round(abs(res_dist[tree] - res_dist2[tree]), 9) == 0.0 for tree in res_dist))
-    print("KL: " + str(round(res_dist.kl_divergence(res_dist2), 9)))
-    # print(ccd.check())
-    alt_res_ccd = ccd.restrict(small_clade)
-    for bad_clade in alt_res_ccd.bad_distributions():
-        print(alt_res_ccd[bad_clade])
-        print(sum(alt_res_ccd[bad_clade].values()))
-
-    alt_res_dist = alt_res_ccd.tree_distribution()
-
-    for tree in res_dist:
-        print(round(abs(res_dist[tree] - alt_res_dist[tree]), 9))
-    print("KL: " + str(round(res_dist.kl_divergence(alt_res_dist), 9)))
-    return ccd, dist, res_dist, res_ccd, res_dist2, alt_res_ccd, alt_res_dist
-
-
-big_clade = "ABCDEFG"
-small_clade = "ABCDEF"
-ccd, dist, res_dist, res_ccd, res_dist2, alt_res_ccd, alt_res_dist = restriction_test_function(big_clade, small_clade, cutoff=0.02)
-
-print(ccd)
-
-for bad_clade in ccd.bad_distributions():
-    print(str(bad_clade) + ": " + str(sum(ccd[bad_clade].values())))
-
-res_dist.kl_divergence(alt_res_dist)
-for bad_clade in alt_res_ccd.bad_distributions():
-    print(alt_res_ccd[bad_clade])
-    print(sum(alt_res_ccd[bad_clade].values()))
-print(ccd)
-print(res_ccd)
-
-# Direct CCD KL comparison
-
-ccd = CCDSet({Subsplit("AB", "CD"): 0.4, Subsplit("ABC", "D"): 0.6,
-              Subsplit("AB", "C"): 2/3, Subsplit("A", "BC"): 1/3,
-              Subsplit("A", "B"): 1.0, Subsplit("B", "C"): 1.0,
-              Subsplit("C", "D"): 1.0})
-dist = ccd.tree_distribution()
-print(dist)
-
-ccd2 = CCDSet({Subsplit("AB", "CD"): 0.5, Subsplit("ABC", "D"): 0.5,
-              Subsplit("AB", "C"): 0.5, Subsplit("A", "BC"): 0.5,
-              Subsplit("A", "B"): 1.0, Subsplit("B", "C"): 1.0,
-              Subsplit("C", "D"): 1.0})
-dist2 = ccd2.tree_distribution()
-print(dist2)
-
-dist.kl_divergence(dist2)
-ccd.kl_divergence(ccd2)
-
-# %timeit dist.kl_divergence(dist2)
-# %timeit ccd.kl_divergence(ccd2)
-
-dist.kl_divergence(ccd2)
-ccd.kl_divergence(dist2)
-
-# %timeit dist.kl_divergence(ccd2)
-# %timeit ccd.kl_divergence(dist2)
-
-# CCD -> restricted CCD vs CCD -> tree dist -> restricted tree dist comparison
-
-big_clade = Clade("ABCDEFG")
-small_clade = Clade("ACDEG")
-
-big_ccd = CCDSet.random(big_clade)
-small_ccd = CCDSet.random(small_clade)
-
-big_dist = big_ccd.tree_distribution()
-small_dist = small_ccd.tree_distribution()
-
-small_dist_approx1 = big_dist.restrict(small_clade)
-
-small_ccd.kl_divergence(small_dist_approx1)
-small_dist.kl_divergence(small_dist_approx1)
-
-small_ccd2 = big_ccd.restrict(small_clade)
-
-small_ccd.kl_divergence(small_ccd2)
-small_dist.kl_divergence(small_ccd2)
-
-small_dist2 = small_ccd2.tree_distribution()
-small_dist.kl_divergence(small_dist2)
-
-small_ccd3 = small_dist2.to_ccd()
-small_ccd3 == small_ccd2
-small_ccd3.kl_divergence(small_ccd2)
-print(small_ccd2)
-print(small_ccd3)
-
-# Model is correct case
-
-big_clade = Clade("ABCDEFG")
-small_clade = Clade("ABCDEF")
-
-big_ccd = CCDSet.random(big_clade, cutoff=0.00)
-small_ccd = big_ccd.restrict(small_clade)
-
-big_dist = big_ccd.tree_distribution()
-small_dist = small_ccd.tree_distribution()
-
-small_dist_approx1 = big_dist.restrict(small_clade)
-
-small_ccd.kl_divergence(small_dist_approx1)
-small_dist.kl_divergence(small_dist_approx1)
-
-small_ccd2 = big_ccd.restrict(small_clade)
-
-small_ccd.kl_divergence(small_ccd2)
-small_dist.kl_divergence(small_ccd2)
-
-small_ccd_approx1 = small_dist_approx1.to_ccd()
-small_ccd.kl_divergence(small_ccd_approx1)
-
-##
-
-big_clade = Clade("ABCDEFG")
-small_clade = Clade("ACDEG")
-
-big_ccd = CCDSet.random(big_clade, cutoff=0.02)
-small_ccd = big_ccd.restrict(small_clade)
-small_ccd2 = big_ccd.restrict(small_clade)
-
-small_ccd.kl_divergence(small_ccd2)
-small_ccd2.kl_divergence(small_ccd)
-
-small_dist = small_ccd.tree_distribution()
-small_dist2 = small_ccd2.tree_distribution()
-
-small_dist.kl_divergence(small_dist2)
-small_dist2.kl_divergence(small_dist)
-
-small_dist.kl_divergence(small_ccd2)
-small_ccd.kl_divergence(small_dist2)
-
-# KL testing
-
-clade = Clade("ABCDEFG")
-ccd1 = CCDSet.random(clade)
-ccd2 = CCDSet.random(clade)
-dist1 = ccd1.tree_distribution()
-dist2 = ccd2.tree_distribution()
-ccd1.kl_divergence(ccd2)
-ccd1.kl_divergence(dist2)
-dist1.kl_divergence(ccd2)
-dist1.kl_divergence(dist2)
-
-# %timeit ccd1.kl_divergence(ccd2)
-# %timeit ccd1.kl_divergence(dist2)
-# %timeit dist1.kl_divergence(ccd2)
-# %timeit dist1.kl_divergence(dist2)
-
-# Subsplit support mutualization experiment
-
-X = "ABCD"
-all_trees = generate_rooted(X)
-
-big_tree = next(all_trees)
-print(big_tree)
-
-leaf_set1, leaf_set2 = "ABC", "BCD"
-tree1 = restrict_tree(big_tree, leaf_set1)
-tree2 = restrict_tree(big_tree, leaf_set2)
-print(tree1)
-print(tree2)
-
-manifest1 = get_subsplit_manifest(tree1)
-manifest2 = get_subsplit_manifest(tree2)
-
-manifest12 = generate_mutual_manifest(manifest1, manifest2, verbose=True)
-print_manifest(manifest12)
-
-ss1 = SubsplitSupport.from_tree(tree1)
-ss2 = SubsplitSupport.from_tree(tree2)
-print(ss1)
-print(ss2)
-ss = ss1.mutualize(ss2)
-print(ss)
-
-# Continued
-
-X = "ABCDE"
-ambig = 1
-n = 2
-restrictions = full_cover_restrictions_n(X, ambig, n)
-restriction = next(restrictions)
-
-result = visualize_restricted_rooted_trees_n(X, restriction)
-result_keys = list(result.keys())
-
-for i, key in enumerate(result_keys): print(f"{i}: {len(result[key].treelist)}")
-
-i1 = [5, 25, 67]
-pjts1 = [result[result_keys[i]] for i in i1]
-big_tree1 = [pjt.treelist[0] for pjt in pjts1]
-projection1 = [pjt.projections[0] for pjt in pjts1]
-
-
-i2 = [19, 44, 72]
-pjts2 = [result[result_keys[i]] for i in i2]
-big_tree2 = [pjt.treelist[0] for pjt in pjts2]
-projection2 = [pjt.projections[1] for pjt in pjts2]
-
-manifests1 = [get_subsplit_manifest(proj) for proj in projection1]
-manifests2 = [get_subsplit_manifest(proj) for proj in projection2]
-
-merged_manifest1 = merge_manifests(manifests1)
-merged_manifest2 = merge_manifests(manifests2)
-
-manifest12 = generate_mutual_manifest(merged_manifest1, merged_manifest2, verbose=True)
-print_manifest(manifest12, show_degenerate=False)
-
-ss1 = SubsplitSupport.from_trees(projection1)
-ss2 = SubsplitSupport.from_trees(projection2)
-ss = ss1.mutualize(ss2)
-print(ss)
-
-# PCSSSupport test
-
-X = "ABCD"
-all_trees = generate_rooted(X)
-
-big_tree = next(all_trees)
-print(big_tree)
-
-leaf_set1, leaf_set2 = "ABC", "BCD"
-tree1 = restrict_tree(big_tree, leaf_set1)
-tree2 = restrict_tree(big_tree, leaf_set2)
-print(tree1)
-print(tree2)
-
-manifest1 = get_subsplit_manifest(tree1)
-manifest2 = get_subsplit_manifest(tree2)
-manifest12 = generate_mutual_manifest(manifest1, manifest2, verbose=True)
-print_manifest(manifest12)
-
-ss1 = SubsplitSupport.from_tree(tree1)
-ss2 = SubsplitSupport.from_tree(tree2)
-print(ss1)
-print(ss2)
-ss = ss1.mutualize(ss2)
-print(ss)
-
-ps = PCSSSupport.from_tree(big_tree)
-print(ps)
-ps.is_complete()
-tree = ps.random_tree()
-print(tree)
-
-ps1 = PCSSSupport.from_tree(tree1)
-print(ps1)
-ps1.is_complete()
-
-ps2 = PCSSSupport.from_tree(tree2)
-print(ps2)
-ps1.is_complete()
-
-pshat = ps1.mutualize(ps2)
-print(pshat)
-pshat.is_complete()
-
-
-trees = ss.all_trees()
-ps = PCSSSupport.from_trees(trees)
-print(ps)
-trees2 = ps.all_trees()
-for tree in trees: print(tree)
-for tree in trees2: print(tree)
-
-# Disambiguation experiment
-
-X = "ABCD"
-ambig = 1
-restrictions = full_cover_restrictions(X, ambig)
-restriction = next(restrictions)
-print(restriction)
-
-result = visualize_restricted_rooted_trees(X, restriction)
-result_keys = list(result.keys())
-
-for i, key in enumerate(result_keys): print(f"{i}: {len(result[key].treelist)}")
-
-i = 0
-print(result[result_keys[i]].proj1)
-print(result[result_keys[i]].proj2)
-for tree in result[result_keys[i]].treelist: print(tree)
-
-example_tree = MyTree(result[result_keys[i]].treelist[0])
-print(example_tree)
-example_tree1 = MyTree(result[result_keys[i]].proj1)
-print(example_tree1)
-example_tree2 = MyTree(result[result_keys[i]].proj2)
-print(example_tree2)
-
-ps = PCSSSupport.from_tree(example_tree)
-print(ps)
-ps1 = PCSSSupport.from_tree(example_tree1)
-print(ps1)
-ps2 = PCSSSupport.from_tree(example_tree2)
-print(ps2)
-pshat = ps1.mutualize(ps2)
-print(pshat)
-
-# Too big too small experiment
-
-
-def enumerate_restricted_rooted_trees(taxa, restriction):
-    result = OrderedDict()
-    for tree in MyTree.generate_rooted(taxa):
-        signature = tuple(tree.restrict(clade) for clade in restriction)
-        if signature not in result:
-            result[signature] = ProjectionTrees_n(signature, [])
-        result[signature].treelist.append(tree)
-    return result
-
-
-X = "ABCDEFG"
-ambig = 3
-n = 2
-restrictions = full_cover_restrictions_n(X, ambig, n)
-restriction = next(restrictions)
-
-result = enumerate_restricted_rooted_trees(X, restriction)
-result_keys = list(result.keys())
-
-for i, key in enumerate(result_keys): print(f"{i}: {len(result[key].treelist)}")
-
-i = 13
-for tree in result[result_keys[i]].projections: print(tree)
-for tree in result[result_keys[i]].treelist: print(tree)
-trees = set(result[result_keys[i]].treelist)
-proj1, proj2 = result[result_keys[i]].projections
-ss1 = SubsplitSupport.from_tree(proj1)
-ss2 = SubsplitSupport.from_tree(proj2)
-sshat = ss1.mutualize(ss2)
-sshat_trees = set(sshat.all_trees())
-trees == sshat_trees
-trees.issubset(sshat_trees)
-ps1 = PCSSSupport.from_tree(proj1)
-ps2 = PCSSSupport.from_tree(proj2)
-pshat = ps1.mutualize(ps2)
-pshat_trees = set(pshat.all_trees())
-trees == pshat_trees
-trees.issubset(pshat_trees)
-
-pshat.all_strictly_complete_supports(True)  # Bugs in here
-
-print("Subsplit Support Test")
-for i, key in enumerate(result_keys):
-    trees = set(result[result_keys[i]].treelist)
-    proj1, proj2 = result[result_keys[i]].projections
-    ss1 = SubsplitSupport.from_tree(proj1)
-    ss2 = SubsplitSupport.from_tree(proj2)
-    sshat = ss1.mutualize(ss2)
-    sshat_trees = set(sshat.all_trees())
-    print(f"Signature {i}: {len(trees)} trees, {len(sshat_trees)} reconstructed trees; same? {trees == sshat_trees}, subset? {trees.issubset(sshat_trees)}")
-
-print("PCSS Support Test")
-for i, key in enumerate(result_keys):
-    trees = set(result[result_keys[i]].treelist)
-    proj1, proj2 = result[result_keys[i]].projections
-    ps1 = PCSSSupport.from_tree(proj1)
-    ps2 = PCSSSupport.from_tree(proj2)
-    pshat = ps1.mutualize(ps2)
-    pshat_trees = set(pshat.all_trees())
-    print(f"Signature {i}: {len(trees)} trees, {len(pshat_trees)} reconstructed trees; same? {trees == pshat_trees}, subset? {trees.issubset(pshat_trees)}")
-
-print("Comparison Test")
-for i, key in enumerate(result_keys):
-    trees = set(result[result_keys[i]].treelist)
-    proj1, proj2 = result[result_keys[i]].projections
-    ss1 = SubsplitSupport.from_tree(proj1)
-    ss2 = SubsplitSupport.from_tree(proj2)
-    sshat = ss1.mutualize(ss2)
-    sshat_trees = set(sshat.all_trees())
-    ps1 = PCSSSupport.from_tree(proj1)
-    ps2 = PCSSSupport.from_tree(proj2)
-    pshat = ps1.mutualize(ps2)
-    pshat_trees = set(pshat.all_trees())
-    print(f"Signature {i:>3}: {len(trees):>2} trees, {len(sshat_trees):>2} SS-reconstructed trees, {len(pshat_trees):>2} PC-reconstructed trees; {trees == sshat_trees:>5} {trees == pshat_trees:>5} {trees.issubset(sshat_trees):>5} {trees.issubset(pshat_trees):>5}")
-    # print(f"   Matches SS?  {trees == sshat_trees},  matches PC?  {trees == pshat_trees},  subset SS?  {trees.issubset(sshat_trees)},  subset PC?  {trees.issubset(pshat_trees)}")
-
-# Experiment: take two random joint trees, restrict, reconstruct,
-# check if originals are in reconstruction, compare reconstruction sizes.
-
-X = "ABCDEFG"
-ambig = 1
-n = 2
-restrictions = full_cover_restrictions_n(X, ambig, n)
-restriction = next(restrictions)
-rest1, rest2 = restriction
-k = 3
-
-trees = [MyTree.random(X) for _ in range(k)]
-proj1s = [tree.restrict(rest1) for tree in trees]
-proj2s = [tree.restrict(rest2) for tree in trees]
-ss1 = SubsplitSupport.from_trees(proj1s)
-ss2 = SubsplitSupport.from_trees(proj2s)
-sshat = ss1.mutualize(ss2)
-sshat_trees = set(sshat.all_trees())
-ps1 = PCSSSupport.from_trees(proj1s)
-ps2 = PCSSSupport.from_trees(proj2s)
-pshat = ps1.mutualize(ps2)
-pshat_trees = set(pshat.all_trees())
-
-pshat.is_complete(verbose=True)
-pshat.to_string_dict()
-
-SubsplitSupport.from_trees(trees).to_set().issubset(sshat.to_set())
-PCSSSupport.from_trees(trees).to_set().issubset(pshat.to_set())
-set(trees).issubset(sshat_trees)
-set(trees).issubset(pshat_trees)
-len(sshat_trees)
-len(pshat_trees)
-
-# Newick test
-
-tree1 = ete3.Tree("((((A,E),D),C),B);")
-print(tree1)
-tree2 = ete3.Tree("((((A,D),E),B),C);")
-print(tree2)
-ss = SubsplitSupport.from_trees([tree1, tree2])
-print(ss)
-len(ss.all_trees())  # 4
-ps = PCSSSupport.from_trees([tree1, tree2])
-print(ps)
-len(ps.all_trees())  # 2
-
-# Newick test 2
-
-tree = MyTree("((((((A,E),D),C),B),F),G);")
-# tree1 = MyTree("(((((A,E),D),C),B),F);")
-# print(tree1)
-# tree2 = MyTree("(((((A,D),E),B),C),G);")
-# print(tree2)
-proj1 = tree.restrict("ABCDEF")
-proj2 = tree.restrict("ABCDEG")
-
-ss1 = SubsplitSupport.from_tree(proj1)
-ss2 = SubsplitSupport.from_tree(proj2)
-sshat = ss1.mutualize(ss2)
-sshat_trees = set(sshat.all_trees())
-ps1 = PCSSSupport.from_tree(proj1)
-ps2 = PCSSSupport.from_tree(proj2)
-pshat = ps1.mutualize(ps2)
-pshat_trees = set(pshat.all_trees())
-
-tree in sshat_trees
-tree in pshat_trees
-len(sshat_trees)
-len(pshat_trees)
-
-sshat_trees == pshat_trees
-for tree in sshat_trees: print(tree)
-
-# Newick test 3
-
-tree1 = MyTree("((((((A,E),D),C),F),B),G);")
-print(tree1)
-tree2 = MyTree("((((((A,D),E),B),F),C),G);")
-print(tree2)
-ss = SubsplitSupport.from_trees([tree1, tree2])
-print(ss)
-len(ss.all_trees())  # 4
-ps = PCSSSupport.from_trees([tree1, tree2])
-print(ps)
-len(ps.all_trees())  # 2
-
-rest1 = "ABCDEF"
-rest2 = "ABCDEG"
-
-trees = [tree1, tree2]
-proj1s = [tree.restrict(rest1) for tree in trees]
-proj2s = [tree.restrict(rest2) for tree in trees]
-ss1 = SubsplitSupport.from_trees(proj1s)
-ss2 = SubsplitSupport.from_trees(proj2s)
-sshat = ss1.mutualize(ss2)
-sshat_trees = set(sshat.all_trees())
-ps1 = PCSSSupport.from_trees(proj1s)
-ps2 = PCSSSupport.from_trees(proj2s)
-pshat = ps1.mutualize(ps2)
-pshat_trees = set(pshat.all_trees())
-
-set(trees).issubset(sshat_trees)
-set(trees).issubset(pshat_trees)
-len(sshat_trees)  # 4
-len(pshat_trees)  # 2
-
-# DONE?: Find an example where PCSSSupport results in fewer virtual trees during mutualization
-
-# Automation
-
-
-def trees_restrict_reconstruct(taxon_set, k=10, ambig=1, n=2):
-    restrictions = full_cover_restrictions_n(taxon_set, ambig, n)
-    restriction = next(restrictions)
-    rest1, rest2 = restriction
-
-    trees = [MyTree.random(taxon_set) for _ in range(k)]
-    proj1s = [tree.restrict(rest1) for tree in trees]
-    proj2s = [tree.restrict(rest2) for tree in trees]
-    ss1 = SubsplitSupport.from_trees(proj1s)
-    ss2 = SubsplitSupport.from_trees(proj2s)
-    sshat = ss1.mutualize(ss2)
-    sshat_trees = set(sshat.all_trees())
-    ps1 = PCSSSupport.from_trees(proj1s)
-    ps2 = PCSSSupport.from_trees(proj2s)
-    pshat = ps1.mutualize(ps2)
-    pshat_trees = set(pshat.all_trees())
-
-    return (SubsplitSupport.from_trees(trees).to_set().issubset(sshat.to_set()),
-            PCSSSupport.from_trees(trees).to_set().issubset(pshat.to_set()),
-            set(trees).issubset(sshat_trees), set(trees).issubset(pshat_trees),
-            len(sshat_trees), len(pshat_trees), (trees, proj1s, proj2s))
-
-
-X = "ABCDEFGHI"
-subset_ss, subset_ps, subset_trees_ss, subset_trees_ps, ntrees_ss, ntrees_ps, details = trees_restrict_reconstruct(X, k=10, ambig=3)
-print(f"{subset_ss}, {subset_ps}, {subset_trees_ss}, {subset_trees_ps}, {ntrees_ss}, {ntrees_ps}")
-
-# Check a MyTree for a clade
-
-tree = MyTree.random("ABCDE")
-print(tree)
-
-tree.check_clade("ABCDE")
-tree.check_clade("AB")
-tree.check_clade("ABC")
-
-foo = tree.get_clade("ABE")
-print(foo)
-
-print(tree.get_clade("ABC"))
-
-tree.check_subsplit(Subsplit("AB", "C"))
-tree.check_subsplit(Subsplit("AB", "DE"))
-tree.check_subsplit(Subsplit("AB", "C"))
-
-# Check clade and subsplit probabilities
-
-ccd = CCDSet.random("ABCDEF")
-tree_dist = ccd.tree_distribution()
-
-clade_probs = ccd.clade_probabilities()
-clade_probs
-
-clade = Clade("BCDF")
-clade_probs[clade]
-tree_dist.feature_prob(clade)
-
-subsplit_probs = ccd.unconditional_probabilities()
-subsplit_probs
-
-subsplit = Subsplit("AD", "B")
-subsplit_probs[subsplit]
-tree_dist.feature_prob(subsplit)
-
-# CCD stuff
-
-reload(classes)
-from classes import *
-
-root_clade = Clade("ABCD")
-ccd = CCDSet.random(root_clade)
-tree_dist = ccd.tree_distribution()
-
-c2c_probs = ccd.clade_to_clade_probabilities()
-c_probs = ccd.clade_probabilities()
-
-clade = Clade("ABD")
-c_probs[clade]
-c2c_probs[clade][root_clade]
-c2c_probs[clade][clade]
-
-parent_clade = Clade("ACD")
-child_clade = Clade("CD")
-c2c_probs[child_clade][parent_clade]
-den = tree_dist.feature_prob(parent_clade)
-num = tree_dist.prob_all([parent_clade, child_clade])
-num / den
-
-# Max probability tree and max clade credibility tree
-
-reload(classes)
-from classes import *
-
-root_clade = Clade("ABCD")
-ccd = CCDSet.random(root_clade)
-tree_dist = ccd.tree_distribution()
-
-print(tree_dist)
-best_tree = tree_dist.max_item()
-best_lik = tree_dist.max_likelihood()
-print(best_tree)
-print(best_lik)
-ccd_best_tree, ccd_best_lik = ccd.max_prob_tree()
-print(ccd_best_tree)
-print(ccd_best_lik)
-
-# print(ccd)
-
-ccd = CCDSet({Subsplit("ABC", "D"): 0.40, Subsplit("A", "BCD"): 0.60, Subsplit("AB", "C"): 1.0, Subsplit("A", "B"): 1.0,
-              Subsplit("BC", "D"): 0.33, Subsplit("BD", "C"): 0.33, Subsplit("B", "CD"): 0.34,
-              Subsplit("B", "C"): 1.0, Subsplit("B", "D"): 1.0, Subsplit("C", "D"): 1.0})
-ccd.normalize()
-tree_dist = ccd.tree_distribution()
-print(tree_dist)
-best_tree = tree_dist.max_item()
-best_lik = tree_dist.max_likelihood()
-print(best_tree)
-print(best_lik)
-ccd_best_tree, ccd_best_lik = ccd.max_prob_tree()
-print(ccd_best_tree)
-print(ccd_best_lik)
-
-clade_probs = ccd.clade_probabilities()
-clade_probs
-
-max_clade_cred_tree = max(tree_dist, key=lambda tree: tree.clade_score(clade_probs))
-print(max_clade_cred_tree)
-print(max_clade_cred_tree.clade_score(clade_probs))
-{tree: tree.clade_score(clade_probs) for tree in tree_dist}
-
-max_clade_tree, max_clade_score = ccd.max_clade_tree()
-print(max_clade_tree)
-print(max_clade_score)
-
-# Clade-to-clade stress test
-
-reload(classes)
-from classes import *
-
-root_clade = Clade("ABCDEFGHI")
-ccd = CCDSet.random(root_clade, concentration=2, cutoff=0.0)
-print(ccd)
-len(ccd)
-
-c_probs = ccd.clade_probabilities()
-# c_probs2 = ccd.clade_probabilities_old()
-c2c_probs = ccd.clade_to_clade_probabilities()
-
-# all(abs(c_probs[key] - c_probs2[key]) < 1e-14 for key in c_probs)
-
-# %timeit ccd.clade_probabilities()
-# %timeit ccd.clade_probabilities_old()
-# %timeit ccd.clade_to_clade_probabilities()
-
-# Max probability tree stress test
-
-reload(classes)
-from classes import *
-
-root_clade = Clade("ABCDEFGHIJK")
-ccd = CCDSet.random(root_clade, concentration=2, cutoff=0.001)
-print(ccd)
-len(ccd)
-
-tree_dist = ccd.tree_distribution()
-
-# %timeit tree_dist = ccd.tree_distribution()
-# %timeit tree_dist.max_item()
-# %timeit ccd.tree_distribution().max_item()
-
-# %timeit ccd.highest_prob_tree()
-# %timeit ccd.max_clade_tree()
-
-# Restriction summarization experiment
-
-reload(classes)
-from classes import *
-
-root_clade = Clade("ABCDEFG")
-ccd = CCDSet.random(root_clade)
-tree_dist = ccd.tree_distribution()
-
-restriction = Clade("ABCDE")
-tree_dist_restricted = tree_dist.restrict(restriction)
-
-clade = Clade("BCDE")
-all_reductions = [clade | set(ps) for ps in powerset(root_clade - restriction)]
-
-tree_dist_restricted.feature_prob(clade)  # Setting the bar
-
-sum(tree_dist.feature_prob(reduction) for reduction in all_reductions)  # Too high!
-tree_dist.prob_any(all_reductions)  # Just right!
-
-ccd_restricted = ccd.restrict(restriction)
-ccd_restricted.clade_probabilities()[clade]  # Just right!
-
-subsplit = Subsplit("BC", "DE")
-tree_dist_restricted.feature_prob(subsplit)  # Setting the bar A
-
-tree_dist_restricted.feature_prob(subsplit.clade())  # Setting the bar 3
-tree_dist_restricted.feature_prob(subsplit) / tree_dist_restricted.feature_prob(subsplit.clade())  # Setting the bar 2
-ccd_restricted[subsplit]  # Just right 2
-
-uncond_probs = ccd.unconditional_probabilities()
-uncond_probs_restricted = ccd_restricted.unconditional_probabilities()
-
-uncond_probs_restricted[subsplit]  # Just right! A
-sum(uncond_probs[ss] for ss in uncond_probs if ss.restrict(restriction) == subsplit)  # Just right! A
-
-sum(sum(uncond_probs[ss] for ss in uncond_probs if ss.restrict(restriction) == sss) for sss in uncond_probs_restricted if sss.clade() == subsplit.clade())  # Just right 3
-sum(uncond_probs_restricted[ss] for ss in uncond_probs_restricted if ss.clade() == subsplit.clade())  # Just right 3
-uncond_probs_restricted[subsplit] / sum(uncond_probs_restricted[ss] for ss in uncond_probs_restricted if ss.clade() == subsplit.clade())  # Just right 2
-sum(uncond_probs[ss] for ss in uncond_probs if ss.restrict(restriction) == subsplit) / sum(sum(uncond_probs[ss] for ss in uncond_probs if ss.restrict(restriction) == sss) for sss in uncond_probs if sss.restrict(restriction).clade() == subsplit.clade())  # Just right 2
-
-tree_dist_restricted.feature_prob(clade)  # Setting the bar
-sum(uncond_probs[ss] for ss in uncond_probs if clade in ss.restrict(restriction))  # Too high!
-sum(uncond_probs_restricted[ss] for ss in uncond_probs_restricted if clade in ss)  # Just right!
-
-sum(uncond_probs[ss] for ss in uncond_probs if ss.restrict(restriction).clade() == clade)
-
-a = sum(uncond_probs[ss] for ss in uncond_probs if ss.restrict(restriction) == subsplit)
-b = sum(uncond_probs[ss] for ss in uncond_probs if ss.restrict(restriction).clade() == subsplit.clade())
-a/b
-ccd_restricted[subsplit]
-
-# New ProbabilityDistribution tests (formerly called ProbabilityDistribution2 here)
-from importlib import reload
-import classes
-reload(classes)
-from classes import *
-
-foo = ProbabilityDistribution()
-foo.set_lin('bar', 0.2)
-foo.params
-
-foo.set_lin('baz', 0.3)
-foo.params
-
-bar = foo.copy()
-foo.normalize()
-foo.probs()
-str(bar)
-
-foo.add_log('bar', 1)
-foo.probs()
-foo.normalize()
-foo.probs()
-
-# Gradient experiments
-
-reload(classes)
-from classes import *
-
-ccd = CCDSet({Subsplit("ABC", "D"): 0.40, Subsplit("A", "BCD"): 0.60, Subsplit("AB", "C"): 1.0, Subsplit("A", "B"): 1.0,
-              Subsplit("BC", "D"): 0.33, Subsplit("BD", "C"): 0.33, Subsplit("B", "CD"): 0.34,
-              Subsplit("B", "C"): 1.0, Subsplit("B", "D"): 1.0, Subsplit("C", "D"): 1.0})
-ccd.normalize()
-
-ccd.unconditional_probabilities()
-
-ccd2 = ccd.copy()
-# ccd2.unconditional_probabilities()
-
-clade = Clade("BCD")
-subsplit = Subsplit("BC","D")
-delta = 0.0001
-ccd2[clade].add_log(subsplit, delta)
-ccd2.normalize(clade)
-
-uncond = ccd.unconditional_probabilities()
-uncond2 = ccd2.unconditional_probabilities()
-
-theo_deriv = uncond[subsplit]*(1.0 - ccd[subsplit])
-est_deriv = (uncond2[subsplit] - uncond[subsplit])/delta
-print(theo_deriv)
-print(est_deriv)
-
-## Experiment 2
-
-ccd = CCDSet({Subsplit("ABC", "D"): 0.40, Subsplit("A", "BCD"): 0.60, Subsplit("AB", "C"): 1.0, Subsplit("A", "B"): 1.0,
-              Subsplit("BC", "D"): 0.33, Subsplit("BD", "C"): 0.33, Subsplit("B", "CD"): 0.34,
-              Subsplit("B", "C"): 1.0, Subsplit("B", "D"): 1.0, Subsplit("C", "D"): 1.0})
-ccd.normalize()
-
-ccd2 = ccd.copy()
-
-subsplit1 = Subsplit("A","BCD")
-clade1 = subsplit1.clade()
-subsplit2 = Subsplit("B","CD")
-clade2 = subsplit2.clade()
-delta = 0.0001
-ccd2[clade1].add_log(subsplit1, delta)
-ccd2.normalize(clade1)
-
-uncond = ccd.unconditional_probabilities()
-c2c = ccd.clade_to_clade_probabilities()
-uncond2 = ccd2.unconditional_probabilities()
-
-theo_deriv = uncond[subsplit1]*(c2c[clade2][clade2] - c2c[clade2][clade1])*ccd[subsplit2]
-est_deriv = (uncond2[subsplit2] - uncond[subsplit2])/delta
-print(theo_deriv)
-print(est_deriv)
-
-## Experiment 3
-
-ccd = CCDSet.random("ABCDEF")
-delta = 0.0001
-subsplit1 = Subsplit("A","BCDE")
-subsplit2 = Subsplit("B","CD")
-
-clade1 = subsplit1.clade()
-clade2 = subsplit2.clade()
-subsplit1_ch = subsplit1.compatible_child(subsplit2)
-
-ccd2 = ccd.copy()
-ccd2[clade1].add_log(subsplit1, delta)
-ccd2.normalize(clade1)
-
-uncond = ccd.unconditional_probabilities()
-c2c = ccd.clade_to_clade_probabilities()
-uncond2 = ccd2.unconditional_probabilities()
-
-theo_deriv = uncond[subsplit1]*(c2c[clade2][subsplit1_ch] - c2c[clade2][clade1])*ccd[subsplit2]
-est_deriv = (uncond2[subsplit2] - uncond[subsplit2])/delta
-print(theo_deriv)
-print(est_deriv)
-
-# General unconditional probability gradient experiments
-
-reload(classes)
-from classes import *
-
-
-
-# def uncond_prob_derivative(prob_of: Subsplit, wrt: Subsplit, ccd: CCDSet, c2c: dict=None):
-#     root_clade = ccd.root_clade()
-#     clade1 = wrt.clade()
-#     clade2 = prob_of.clade()
-#     if not clade2.issubset(clade1):
-#         return 0.0
-#     if c2c is None:
-#         c2c = ccd.clade_to_clade_probabilities()
-#     uncond_wrt = c2c.get(clade1, dict()).get(root_clade, 0.0) * ccd[wrt]
-#     if clade1 == clade2:
-#         indic = 1.0 if (prob_of == wrt) else 0.0
-#         return uncond_wrt*(indic - ccd[wrt])
-#     comp_child = wrt.compatible_child(prob_of)
-#     comp_child_to_clade2 = 0.0
-#     if comp_child is not None:
-#         comp_child_to_clade2 = c2c.get(clade2, dict()).get(comp_child, 0.0)
-#     clade1_to_clade2 = c2c.get(clade2, dict()).get(clade1, 0.0)
-#     return uncond_wrt*(comp_child_to_clade2 - clade1_to_clade2)*ccd[prob_of]
-
-
-ccd = CCDSet.random("ABCDEF")
-delta = 0.0001
-
-c2c = ccd.clade_to_clade_probabilities()
-
-clade1 = random.choice(list(ccd.clades()))
-wrt = random.choice(list(ccd[clade1].keys()))
-clade2 = random.choice(list(ccd.clades()))
-prob_of = random.choice(list(ccd[clade2].keys()))
-
-est_deriv = estimate_derivative(prob_of, wrt, ccd, delta=delta)
-theo_deriv = ccd.uncond_prob_derivative(prob_of, wrt, c2c)
-print(abs(theo_deriv - est_deriv))
-print(abs(theo_deriv - est_deriv)/abs(est_deriv))
-
-## Drawn from c2c probs
-
-ccd = CCDSet.random("ABCDEF")
-delta = 0.00001
-
-c2c = ccd.clade_to_clade_probabilities()
-
-clade2 = random.choice(list(c2c.keys()))
-prob_of = random.choice(list(ccd[clade2].keys()))
-clade1 = random.choice(list(c2c[clade2].keys()))
-wrt = random.choice(list(ccd[clade1].keys()))
-
-est_deriv = estimate_derivative(prob_of, wrt, ccd, delta=delta)
-theo_deriv = ccd.uncond_prob_derivative(prob_of, wrt, c2c)
-print(abs(theo_deriv - est_deriv))
-print(abs(theo_deriv - est_deriv)/abs(est_deriv))
-
-# Gradient check under restriction
-
-
-
-# def restricted_uncond_prob_derivative(restriction, prob_of: Subsplit, wrt: Subsplit, ccd: CCDSet, c2c: dict=None):
-#     restriction = Clade(restriction)
-#     if c2c is None:
-#         c2c = ccd.clade_to_clade_probabilities()
-#     result = 0.0
-#     for subsplit in ccd.iter_subsplits():
-#         # print(f"Examining subsplit {subsplit}:")
-#         if subsplit.restrict(restriction) == prob_of:
-#             # print("Found a match")
-#             result += ccd.uncond_prob_derivative(prob_of=subsplit, wrt=wrt, c2c=c2c)
-#     return result
-
-
-X = "ABCDEFG"
-Xbar = "ABCDE"
-prob_of = Subsplit("BC", "D")
-wrt = Subsplit("AE", "BCDF")
-
-ccd = CCDSet.random(X)
-delta = 0.000001
-
-c2c = ccd.clade_to_clade_probabilities()
-
-ccd_r = ccd.restrict(Xbar)
-uncond_r = ccd_r.unconditional_probabilities()
-uncond_r[prob_of]
-
-ccd2 = ccd.copy()
-ccd2[wrt.clade()].add_log(wrt, delta)
-ccd2.normalize()
-ccd2_r = ccd2.restrict(Xbar)
-uncond2_r = ccd2_r.unconditional_probabilities()
-(uncond2_r[prob_of] - uncond_r[prob_of]) / delta
-
-est_deriv = estimate_restricted_derivative(restriction=Xbar, prob_of=prob_of, wrt=wrt, ccd=ccd, delta=delta)
-theo_deriv = ccd.restricted_uncond_prob_derivative(restriction=Xbar, prob_of=prob_of, wrt=wrt, c2c=c2c)
-print(abs(theo_deriv - est_deriv))
-print(abs(theo_deriv - est_deriv)/abs(est_deriv))
-
-tree_dist_r = ccd_r.tree_distribution()
-tree_dist2_r = ccd2_r.tree_distribution()
-tree_dist_r.feature_prob(prob_of)
-uncond_r[prob_of]
-tree_dist2_r.feature_prob(prob_of)
-uncond2_r[prob_of]
-
-
-
-# def restricted_clade_prob_derivative(restriction, prob_of: Clade, wrt: Subsplit, ccd: CCDSet, c2c: dict=None):
-#     restriction = Clade(restriction)
-#     if c2c is None:
-#         c2c = ccd.clade_to_clade_probabilities()
-#     result = 0.0
-#     for subsplit in ccd.iter_subsplits():
-#         # print(f"Examining subsplit {subsplit}:")
-#         if subsplit.restrict(restriction).clade() == prob_of and not subsplit.restrict(restriction).is_trivial():
-#             # print("Found a match")
-#             result += ccd.uncond_prob_derivative(prob_of=subsplit, wrt=wrt, c2c=c2c)
-#     return result
-
-
-X = Clade("ABCDEFG")
-Xbar = Clade("ABCDE")
-prob_of = Clade("BCD")
-wrt = Subsplit("AE", "BCDF")
-
-ccd = CCDSet.random(X)
-delta = 0.000001
-
-c2c = ccd.clade_to_clade_probabilities()
-
-ccd_r = ccd.restrict(Xbar)
-uncond_r = ccd_r.clade_probabilities()
-uncond_r[prob_of]
-
-ccd2 = ccd.copy()
-ccd2[wrt.clade()].add_log(wrt, delta)
-ccd2.normalize()
-ccd2_r = ccd2.restrict(Xbar)
-uncond2_r = ccd2_r.clade_probabilities()
-(uncond2_r[prob_of] - uncond_r[prob_of]) / delta
-
-est_deriv = estimate_restricted_clade_derivative(restriction=Xbar, prob_of=prob_of, wrt=wrt, ccd=ccd, delta=delta)
-theo_deriv = ccd.restricted_clade_prob_derivative(restriction=Xbar, prob_of=prob_of, wrt=wrt, ccd=ccd, c2c=c2c)
-print(abs(theo_deriv - est_deriv))
-print(abs(theo_deriv - est_deriv)/abs(est_deriv))
-
-tree_dist_r = ccd_r.tree_distribution()
-tree_dist2_r = ccd2_r.tree_distribution()
-tree_dist_r.feature_prob(prob_of)
-uncond_r[prob_of]
-tree_dist2_r.feature_prob(prob_of)
-uncond2_r[prob_of]
-
-subsplit_uncond = ccd.unconditional_probabilities()
-subsplit_uncond_r = ccd_r.unconditional_probabilities()
-sum(sum(subsplit_uncond[ss] for ss in subsplit_uncond if ss.restrict(Xbar) == sss) for sss in subsplit_uncond_r if sss.clade() == prob_of)
-sum(sum(subsplit_uncond[ss] for ss in subsplit_uncond if ss.restrict(Xbar) == sss) for sss in subsplit_uncond if sss.clade() & Xbar == prob_of)
-sum(sum(subsplit_uncond[ss] for ss in subsplit_uncond if ss.restrict(Xbar) == sss) for sss in subsplit_uncond if sss.restrict(Xbar).clade() == prob_of)
-sum(subsplit_uncond_r[ss] for ss in subsplit_uncond_r if ss.clade() == prob_of)
-uncond_r[prob_of]
-restricted_subsplits = {ss.restrict(Xbar) for ss in subsplit_uncond if ss.restrict(Xbar).clade() == prob_of and not ss.restrict(Xbar).is_trivial()}
-sum(sum(subsplit_uncond[ss] for ss in subsplit_uncond if ss.restrict(Xbar) == sss) for sss in restricted_subsplits if sss.clade() == prob_of)
-sum(sum(subsplit_uncond[ss] for ss in subsplit_uncond if ss.restrict(Xbar) == sss) for sss in
-    {ssss.restrict(Xbar) for ssss in subsplit_uncond if ssss.restrict(Xbar).clade() == prob_of and not ssss.restrict(Xbar).is_trivial()})
-sum(sum(subsplit_uncond[ss] for ss in subsplit_uncond if ss.restrict(Xbar) == sss) for sss in
-    {ssss.restrict(Xbar) for ssss in subsplit_uncond if ssss.restrict(Xbar).clade() == prob_of})  # Bad (on purpose)
-tree_dist_r.feature_prob(prob_of)
-
-# Restricted conditional probability derivative experiments
-
-
-
-X = Clade("ABCDEFG")
-Xbar = Clade("ABCDE")
-prob_of = Subsplit("A", "BCD")
-wrt = Subsplit("ABCD", "F")
-
-ccd = CCDSet.random(X)
-delta = 0.000001
-
-c2c = ccd.clade_to_clade_probabilities()
-
-ccd_r = ccd.restrict(Xbar)
-
-ccd2 = ccd.copy()
-ccd2[wrt.clade()].add_log(wrt, delta)
-ccd2.normalize()
-ccd2_r = ccd2.restrict(Xbar)
-(ccd2_r[prob_of] - ccd_r[prob_of]) / delta
-
-est_deriv = estimate_restricted_conditional_derivative(restriction=Xbar, prob_of=prob_of, wrt=wrt, ccd=ccd, delta=delta)
-theo_deriv = ccd.restricted_cond_prob_derivative(restriction=Xbar, prob_of=prob_of, wrt=wrt, c2c=c2c, restricted_self=ccd_r)
-print(abs(theo_deriv - est_deriv))
-print(abs(theo_deriv - est_deriv)/abs(est_deriv))
-
-# KL-divergence derivative experiments
-
-X = Clade("ABCDEFG")
-Xbar = Clade("ABCDE")
-# wrt = Subsplit("A", "BC")
-ccd = CCDSet.random(X)
-ccd_small = CCDSet.random(Xbar)
-delta = 0.000001
-
-c2c = ccd.clade_to_clade_probabilities()
-
-ccd_r = ccd.restrict(Xbar)
-ccd_small.kl_divergence(ccd_r)
-
-# clade1 = random.choice(list(ccd.clades()))
-wrt = random.choice(list(ccd.support()))
-
-ccd2 = ccd.copy()
-ccd2[wrt.clade()].add_log(wrt, delta)
-ccd2.normalize()
-ccd2_r = ccd2.restrict(Xbar)
-(ccd_small.kl_divergence(ccd2_r) - ccd_small.kl_divergence(ccd_r)) / delta
-
-est_deriv = estimate_kl_divergence_derivative(ccd=ccd, ccd_small=ccd_small, wrt=wrt, delta=delta)
-theo_deriv = ccd.restricted_kl_divergence_derivative_old(other=ccd_small, wrt=wrt, c2c=c2c, restricted_self=ccd_r)
-# theo_deriv = ccd.restricted_kl_divergence_derivative(other=ccd_small, wrt=wrt)
-print(abs(theo_deriv - est_deriv))
-print(abs(theo_deriv - est_deriv)/abs(est_deriv))
-
-tdist_small = ccd_small.tree_distribution()
-tdist_r = ccd_r.tree_distribution()
-tdist_small.kl_divergence(tdist_r)
-ccd_small.kl_divergence(ccd_r)
-
-tdist2_r = ccd2_r.tree_distribution()
-tdist_small.kl_divergence(tdist2_r)
-ccd_small.kl_divergence(ccd2_r)
-(tdist_small.kl_divergence(tdist2_r) - tdist_small.kl_divergence(tdist_r)) / delta
-
-# Looking for bad derivatives experiments
-
-X = Clade("ABCDEFG")
-Xbar = Clade("ABCDE")
-
-ccd = CCDSet.random(X)
-ccd_small = CCDSet.random(Xbar)
-delta = 0.000001
-
-c2c = ccd.clade_to_clade_probabilities()
-ccd_r = ccd.restrict(Xbar)
-ccd_small.kl_divergence(ccd_r)
-
-# clade1 = random.choice(list(ccd.clades()))
-# wrt = random.choice(list(ccd[clade1].keys()))
-wrt = Subsplit("ABC", "EF")
-
-verbose_dict = dict()
-est_deriv = estimate_kl_divergence_derivative(ccd=ccd, ccd_small=ccd_small, wrt=wrt, delta=delta)
-theo_deriv = ccd.restricted_kl_divergence_derivative_old(other=ccd_small, wrt=wrt, c2c=c2c, restricted_self=ccd_r, verbose_dict=verbose_dict)
-for sbar in verbose_dict:
-    est_cond = estimate_restricted_conditional_derivative(Xbar, sbar, wrt, ccd, delta)
-    verbose_dict[sbar]['est'] = est_cond
-
-for sbar in verbose_dict:
-    if len(sbar.clade()) >= 3:
-        # print(f"{sbar}:\tP={verbose_dict[sbar]['P']:10.4g}, q={verbose_dict[sbar]['q']:10.4g}, dq={verbose_dict[sbar]['dq']:10.4g}, est={verbose_dict[sbar]['est']:10.4g}, diff={abs(verbose_dict[sbar]['dq']-verbose_dict[sbar]['est']):10.4g}, rel={abs(verbose_dict[sbar]['dq']-verbose_dict[sbar]['est'])/max(abs(verbose_dict[sbar]['dq']), abs(verbose_dict[sbar]['est'])):10.4g}")
-        print(f"{sbar}:\tP={verbose_dict[sbar]['P']:10.4g}, q={verbose_dict[sbar]['q']:10.4g}, dq={verbose_dict[sbar]['dq']:10.4g}, est={verbose_dict[sbar]['est']:10.4g}, diff={abs(verbose_dict[sbar]['dq'] - verbose_dict[sbar]['est']):10.4g}")
-
-chosen_sss = {ss for ss in ccd_r.iter_subsplits() if len(ss.clade()) == 5}
-for ss in chosen_sss:
-    est_uncond_deriv = estimate_restricted_derivative(Xbar, ss, wrt, ccd, delta)
-    theo_uncond_deriv = ccd.restricted_uncond_prob_derivative(Xbar, ss, wrt, c2c)
-    print(f"dQ({ss}): est={est_uncond_deriv:10.4g}, theo={theo_uncond_deriv:10.4g}, rel={abs(est_uncond_deriv-theo_uncond_deriv)/abs(theo_uncond_deriv):10.4g}")
-
-# Update manually
-manual_list = [Subsplit("B", "CE"), Subsplit("BE", "C"), Subsplit("BC", "E")]
-manual_result = 0.0
-for ss in manual_list:
-    manual_result += -verbose_dict[ss]['P']*verbose_dict[ss]['dq']/verbose_dict[ss]['q']
-
-# Update manually
-manual_list = [Subsplit("B", "CE"), Subsplit("BE", "C"), Subsplit("BC", "E")]
-for sbar in manual_list:
-    est_deriv1 = estimate_restricted_conditional_derivative(Xbar, sbar, wrt, ccd, delta)
-    theo_deriv1 = ccd.restricted_cond_prob_derivative(Xbar, sbar, wrt, c2c, ccd_r)
-    print(f"est={est_deriv1:10.4g}, theo={theo_deriv1:10.4g}, diff={abs(est_deriv1-theo_deriv1):10.4g}")
-
-
-ccd2 = ccd.copy()
-ccd2[wrt.clade()].add_log(wrt, delta)
-ccd2.normalize()
-ccd2_r = ccd2.restrict(Xbar)
-(ccd_small.kl_divergence(ccd2_r) - ccd_small.kl_divergence(ccd_r)) / delta
-
-## Check for bad derivatives
-
-X = Clade("ABCDEFG")
-ccd = CCDSet.random(X)
-c2c = ccd.clade_to_clade_probabilities()
-delta = 0.000001
-wrt = Subsplit("ABC", "EF")
-
-verbose_dict = dict()
-for ss in ccd.iter_subsplits():
-    est_uncond_deriv = estimate_derivative(ss, wrt, ccd, delta)
-    theo_uncond_deriv = ccd.uncond_prob_derivative(ss, wrt, c2c)
-    abs_diff = abs(est_uncond_deriv - theo_uncond_deriv)
-    print(f"{ss}: \t est={est_uncond_deriv:10.4g}, theo={theo_uncond_deriv:10.4g}, diff={abs_diff:10.4g}")
-
-# Test new KL derivative function
-
-reload(classes)
-from classes import *
-
-X = Clade("ABCDEFG")
-Xbar = Clade("ABCDE")
-# wrt = Subsplit("A", "BC")
-ccd = CCDSet.random(X)
-ccd_small = CCDSet.random(Xbar)
-delta = 0.000001
-
-c2c = ccd.clade_to_clade_probabilities()
-
-ccd_r = ccd.restrict(Xbar)
-ccd_small.kl_divergence(ccd_r)
-
-# clade1 = random.choice(list(ccd.clades()))
-wrt = random.choice(list(ccd.support()))
-
-ccd2 = ccd.copy()
-ccd2[wrt.clade()].add_log(wrt, delta)
-ccd2.normalize()
-ccd2_r = ccd2.restrict(Xbar)
-(ccd_small.kl_divergence(ccd2_r) - ccd_small.kl_divergence(ccd_r)) / delta
-
-est_deriv = estimate_kl_divergence_derivative(ccd=ccd, ccd_small=ccd_small, wrt=wrt, delta=delta)
-theo_deriv = ccd.restricted_kl_divergence_derivative_old(other=ccd_small, wrt=wrt, c2c=c2c, restricted_self=ccd_r)
-theo_deriv2 = ccd.restricted_kl_divergence_derivative(other=ccd_small, wrt=wrt, c2c=c2c, restricted_self=ccd_r)
-print(abs(theo_deriv - est_deriv))
-print(abs(theo_deriv2 - est_deriv))
-print(abs(theo_deriv - theo_deriv2))
-print(abs(theo_deriv2 - est_deriv)/abs(est_deriv))
-
-# %timeit estimate_kl_divergence_derivative(ccd=ccd, ccd_small=ccd_small, wrt=wrt, delta=delta)
-# %timeit ccd.restricted_kl_divergence_derivative_old(other=ccd_small, wrt=wrt, c2c=c2c, restricted_self=ccd_r)
-# %timeit ccd.restricted_kl_divergence_derivative(other=ccd_small, wrt=wrt, c2c=c2c, restricted_self=ccd_r)
-
-# Test new KL gradient function
-
-reload(classes)
-from classes import *
-
-X = Clade("ABCDEFG")
-Xbar = Clade("ABCDE")
-
-ccd = CCDSet.random(X)
-ccd_small = CCDSet.random(Xbar)
-delta = 0.000001
-
-c2c = ccd.clade_to_clade_probabilities()
-
-ccd_r = ccd.restrict(Xbar)
-ccd_small.kl_divergence(ccd_r)
-
-theo_grad = ccd.restricted_kl_divergence_gradient(other=ccd_small, c2c=c2c, restricted_self=ccd_r)
-
-wrt = random.choice(list(theo_grad.keys()))
-est_deriv = estimate_kl_divergence_derivative(ccd=ccd, ccd_small=ccd_small, wrt=wrt, delta=delta)
-print(abs(theo_grad[wrt] - est_deriv))
-print(abs(theo_grad[wrt] - est_deriv)/abs(est_deriv) if est_deriv != 0.0 else -abs(theo_grad[wrt] - est_deriv))
-
-# %timeit ccd.restricted_kl_divergence_gradient(other=ccd_small, c2c=c2c, restricted_self=ccd_r)
-
-for wrt_temp in theo_grad:
-    est_deriv_temp = estimate_kl_divergence_derivative(ccd=ccd, ccd_small=ccd_small, wrt=wrt_temp, delta=delta)
-    print(f"{wrt_temp}: \t grad={theo_grad[wrt_temp]:10.4g} \t est={est_deriv_temp:10.4g} \t diff={abs(theo_grad[wrt_temp]-est_deriv_temp):10.4g}")
-
-
 # Gradient descent experiments
 
 reload(classes)
 from classes import *
-
 
 
 X = Clade("ABCDEFG")
@@ -1368,7 +32,6 @@ reference_tree_dist.kl_divergence(candidate_tree_dist)
 reference_tree_dist.kl_divergence(candidate_tree_dist2)
 
 ## Multiple reference distributions
-
 
 X = Clade("ABCDEFG")
 restrictions = [Clade("ABCDE"), Clade("CDEFG")]
@@ -1583,6 +246,1319 @@ true_tree = true_ccd.tree_distribution()
 est_tree = ccd.tree_distribution()
 true_tree.kl_divergence(est_tree)
 
+# Checking for ~zero derivatives
+
+reload(classes)
+from classes import *
+
+
+X = Clade("ABCDEF")
+restrictions = [Clade("ABCD"), Clade("ABEF"), Clade("CDEF")]
+
+true_ccd = CCDSet.random(X)
+references = [true_ccd.restrict(restriction) for restriction in restrictions]
+
+starting_ccd1 = CCDSet.random(X)
+true_ccd.kl_divergence(starting_ccd1)
+split_kl = true_ccd.kl_divergence_ccd_verbose(starting_ccd1)
+sum(split_kl.values())
+[reference.kl_divergence(starting_ccd1.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+
+organized_gradient = starting_ccd1.restricted_kl_divergence_gradient_multi_organized(references)
+l2norm_dict_of_dicts(organized_gradient)
+
+ccd, kl_list, true_kl_list = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+
+true_ccd.kl_divergence(ccd)
+kl_list[0] - kl_list[-1]
+true_kl_list[0] - true_kl_list[-1]
+
+split_kl_after = true_ccd.kl_divergence_ccd_verbose(ccd)
+[reference.kl_divergence(ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+[reference.kl_divergence(true_ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+
+for clade in split_kl:
+    print(f"Clade {str(clade)}: before={split_kl[clade]:8.4g}, after={split_kl_after[clade]:8.4g}")
+
+## Checking for ~zero derivatives and degrees of freedom test
+
+X = Clade("ABCDEFG")
+restrictions = [Clade("ABCDEF"), Clade("ABCDEG"), Clade("ABCDFG"), Clade("ABCEFG"), Clade("ABDEFG"), Clade("ACDEFG"), Clade("BCDEFG")]
+
+true_ccd = CCDSet.random(X)
+references = [true_ccd.restrict(restriction) for restriction in restrictions]
+
+starting_ccd1 = CCDSet.random(X)
+true_ccd.kl_divergence(starting_ccd1)
+split_kl = true_ccd.kl_divergence_ccd_verbose(starting_ccd1)
+sum(split_kl.values())
+[reference.kl_divergence(starting_ccd1.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+sum(reference.kl_divergence(starting_ccd1.restrict(restriction)) for reference, restriction in zip(references, restrictions))
+
+organized_gradient = starting_ccd1.restricted_kl_divergence_gradient_multi_organized(references)
+l2norm_dict_of_dicts(organized_gradient)
+
+ccd, kl_list, true_kl_list = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=500)
+
+true_ccd.kl_divergence(ccd)
+kl_list[0] - kl_list[-1]
+true_kl_list[0] - true_kl_list[-1]
+
+split_kl_after = true_ccd.kl_divergence_ccd_verbose(ccd)
+[reference.kl_divergence(ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+[reference.kl_divergence(true_ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+
+[reference.degrees_of_freedom() for reference in references]
+sum(reference.degrees_of_freedom() for reference in references)
+true_ccd.degrees_of_freedom()
+
+# Multiple start points experiment
+
+reload(classes)
+from classes import *
+
+
+X = Clade("ABCDEF")
+restrictions = [Clade("ABCDE"), Clade("ABCEF"), Clade("ACDEF")]
+# restrictions = [Clade("ABCDE"), Clade("ABCDF"), Clade("ABCEF"), Clade("ABDEF"), Clade("ACDEF")]
+
+true_ccd = CCDSet.random(X)
+references = [true_ccd.restrict(restriction) for restriction in restrictions]
+
+starting_ccd1 = CCDSet.random(X)
+true_ccd.kl_divergence(starting_ccd1)
+split_kl1 = true_ccd.kl_divergence_ccd_verbose(starting_ccd1)
+split_kl1
+sum(split_kl1.values())
+[reference.kl_divergence(starting_ccd1.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+
+organized_gradient1 = starting_ccd1.restricted_kl_divergence_gradient_multi_organized(references)
+l2norm_dict_of_dicts(organized_gradient1)
+
+ccd1, kl_list1, true_kl_list1 = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+
+true_ccd.kl_divergence(ccd1)
+kl_list1[0] - kl_list1[-1]
+true_kl_list1[0] - true_kl_list1[-1]
+
+split_kl_after1 = true_ccd.kl_divergence_ccd_verbose(ccd1)
+split_kl_after1
+[reference.kl_divergence(ccd1.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+[reference.kl_divergence(true_ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+
+for clade in split_kl1:
+    print(f"Clade {str(clade)}: before={split_kl1[clade]:8.4g}, after={split_kl_after1[clade]:8.4g}")
+
+starting_ccd2 = CCDSet.random(X)
+true_ccd.kl_divergence(starting_ccd2)
+split_kl2 = true_ccd.kl_divergence_ccd_verbose(starting_ccd2)
+split_kl2
+sum(split_kl2.values())
+[reference.kl_divergence(starting_ccd2.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+
+organized_gradient2 = starting_ccd2.restricted_kl_divergence_gradient_multi_organized(references)
+l2norm_dict_of_dicts(organized_gradient2)
+
+ccd2, kl_list2, true_kl_list2 = gradient_descent(starting=starting_ccd2, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+
+true_ccd.kl_divergence(ccd2)
+kl_list2[0] - kl_list2[-1]
+true_kl_list2[0] - true_kl_list2[-1]
+
+split_kl_after2 = true_ccd.kl_divergence_ccd_verbose(ccd2)
+split_kl_after2
+[reference.kl_divergence(ccd2.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+[reference.kl_divergence(true_ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+
+for clade in split_kl2:
+    print(f"Clade {str(clade)}: before={split_kl2[clade]:8.4g}, after={split_kl_after2[clade]:8.4g}")
+
+mutual_split_kl = starting_ccd1.kl_divergence_ccd_verbose(starting_ccd2)
+mutual_split_kl
+starting_ccd1.kl_divergence(starting_ccd2)
+mutual_split_kl_after = ccd1.kl_divergence_ccd_verbose(ccd2)
+mutual_split_kl_after
+ccd1.kl_divergence(ccd2)
+
+for clade in split_kl1:
+    if split_kl1[clade] == 0.0:
+        continue
+    print(f"Clade {str(clade)}:")
+    print(f"  Run 1: before={split_kl1[clade]:8.4g}, after={split_kl_after1[clade]:8.4g}, %remaining={100*split_kl_after1[clade]/split_kl1[clade]}%")
+    print(f"  Run 2: before={split_kl2[clade]:8.4g}, after={split_kl_after2[clade]:8.4g}, %remaining={100*split_kl_after2[clade]/split_kl2[clade]}%")
+    print(f"  Mutual: before={mutual_split_kl[clade]:8.4g}, after={mutual_split_kl_after[clade]:8.4g}, %remaining={100*mutual_split_kl_after[clade]/mutual_split_kl[clade]}%")
+
+
+# Sparsity experiment
+
+from importlib import reload
+# import numpy as np
+import classes
+
+reload(classes)
+from classes import *
+
+
+X = Clade("ABCDEFG")
+restrictions = [Clade("ABCDE"), Clade("CDEFG"), Clade("ABDFG")]
+
+true_ccd = CCDSet.random(X)
+# true_ccd = CCDSet.random_with_sparsity(X, sparsity=0.75)
+len(true_ccd)
+
+references = [true_ccd.restrict(restriction) for restriction in restrictions]
+
+common_support = None
+for reference in references:
+    if common_support is None:
+        common_support = reference.support(include_trivial=True)
+        continue
+    common_support = common_support.mutualize(reference.support(include_trivial=True))
+len(common_support)
+
+common_support.is_complete()
+
+starting_ccd = CCDSet.random_from_support(common_support)
+len(starting_ccd)
+
+true_ccd.kl_divergence(starting_ccd)
+
+[reference.kl_divergence(starting_ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
+
+ccd, kl_list, true_kl_list = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+
+np.round(np.array(true_kl_list), 3)
+
+kl_list[0] - kl_list[-1]
+true_kl_list[0] - true_kl_list[-1]
+
+true_ccd.kl_divergence(ccd)
+ccd.kl_divergence(true_ccd)
+
+true_tree = true_ccd.tree_distribution()
+est_tree = ccd.tree_distribution()
+true_tree.kl_divergence(est_tree)
+
+
+# cross_multiple experiments
+
+reload(classes)
+from classes import *
+
+# subsplits = [Subsplit("A", "B"), Subsplit("C", "D"), Subsplit("E", "F"), Subsplit("G", "H")]
+subsplits = [Subsplit("A", "BC"), Subsplit("CE", "D"), Subsplit("E", "F"), Subsplit("G", "H")]
+
+rearranged = random.sample(subsplits, len(subsplits))
+list1 = Subsplit.cross_multiple(rearranged)
+list2 = Subsplit.cross_multiple_naive(rearranged)
+set1 = set(list1)
+set2 = set(list2)
+set1 == set2
+
+len(list1)
+len(set1)
+len(list2)
+len(set2)
+
+print(list1)
+
+print(set1)
+print(set2)
+
+# common_support experiments
+
+reload(classes)
+from classes import *
+
+X = "ABCDEF"
+# restrictions = [Clade("ABCDE"), Clade("ABCEF"), Clade("ACDEF")]
+restrictions = [Clade("ABCDE"), Clade("ABCDF"), Clade("ABCEF"), Clade("ABDEF"), Clade("ACDEF"), Clade("BCDEF")]
+
+ccd = CCDSet.random_with_sparsity(X, 0.75)
+len(ccd)
+
+support = ccd.support()
+len(support)
+len(ccd.restrict(restrictions[0]))
+len(support.restrict(restrictions[0]))
+
+reference_supports = [support.restrict(restriction) for restriction in restrictions]
+common_support = SubsplitSupport.common_support(reference_supports)
+len(common_support)
+
+common_support_1by1 = reference_supports[0]
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[1])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[2])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[3])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[4])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[5])
+len(common_support_1by1)
+
+support.to_set().issubset(common_support_1by1.to_set())
+support.to_set().issubset(common_support.to_set())
+common_support.to_set() == common_support_1by1.to_set()
+
+#
+
+reload(classes)
+from classes import *
+
+# X = "ABCDEF"
+# restrictions = [Clade("ABCDE"), Clade("ABCDF"), Clade("ABCEF"), Clade("ABDEF"), Clade("ACDEF"), Clade("BCDEF")]
+X = Clade("ABCDEFG")
+restrictions = [Clade("ABCDEF"), Clade("ABCDEG"), Clade("ABCDFG"), Clade("ABCEFG"), Clade("ABDEFG"), Clade("ACDEFG"), Clade("BCDEFG")]
+
+true_ccd = CCDSet.random_with_sparsity(X, 0.75)
+len(true_ccd)
+
+true_support = true_ccd.support()
+len(true_support)
+len(true_ccd.restrict(restrictions[0]))
+len(true_support.restrict(restrictions[0]))
+
+references = [true_ccd.restrict(restriction) for restriction in restrictions]
+reference_supports = [true_support.restrict(restriction) for restriction in restrictions]
+
+common_support_1by1 = reference_supports[0]
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[1])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[2])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[3])
+len(common_support_1by1)
+
+selected_support = common_support_1by1
+
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[4])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[5])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[6])
+len(common_support_1by1)
+
+true_support.to_set().issubset(common_support_1by1.to_set())
+true_support.to_set() == common_support_1by1.to_set()
+
+starting_ccd = CCDSet.random_from_support(common_support_1by1)
+true_ccd.kl_divergence(starting_ccd)
+ccd_all, kl_list_all, true_kl_list_all = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+true_ccd.kl_divergence(ccd_all)
+
+len(selected_support)
+starting_ccd_some = CCDSet.random_from_support(selected_support)
+true_ccd.kl_divergence(starting_ccd_some)
+ccd_some, kl_list_some, true_kl_list_some = gradient_descent(starting=starting_ccd_some, references=references[:4], starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+true_ccd.kl_divergence(ccd_some)
+
+#
+
+reload(classes)
+from classes import *
+
+
+X = Clade("ABCDEFGH")
+restrictions = [Clade("ABCDEFG"), Clade("ABCDEGH"), Clade("ABCEFGH"), Clade("ACDEFGH")]
+
+true_ccd = CCDSet.random_with_sparsity(X, 0.8)
+len(true_ccd)
+
+true_support = true_ccd.support()
+len(true_support)
+len(true_ccd.restrict(restrictions[0]))
+len(true_support.restrict(restrictions[0]))
+
+references = [true_ccd.restrict(restriction) for restriction in restrictions]
+reference_supports = [true_support.restrict(restriction) for restriction in restrictions]
+
+common_support_1by1 = reference_supports[0]
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[1])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[2])
+len(common_support_1by1)
+common_support_1by1 = common_support_1by1.mutualize(reference_supports[3])
+len(common_support_1by1)
+
+# selected_support = common_support_1by1
+# common_support_1by1 = common_support_1by1.mutualize(reference_supports[4])
+# len(common_support_1by1)
+# common_support_1by1 = common_support_1by1.mutualize(reference_supports[5])
+# len(common_support_1by1)
+# common_support_1by1 = common_support_1by1.mutualize(reference_supports[6])
+# len(common_support_1by1)
+
+true_support.to_set().issubset(common_support_1by1.to_set())
+true_support.to_set() == common_support_1by1.to_set()
+
+starting_ccd = CCDSet.random_from_support(common_support_1by1)
+true_ccd.kl_divergence(starting_ccd)
+ccd_all, kl_list_all, true_kl_list_all = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+true_ccd.kl_divergence(ccd_all)
+
+#
+
+reload(classes)
+from classes import *
+
+
+X = Clade("ABCDEFGH")
+ambig = 2
+n_references = 5
+restrictions = list(set(list(map(Clade, (random.sample(X, len(X)-ambig) for _ in range(n_references))))))
+Clade(set.union(*map(set, restrictions))) == X
+len(restrictions)
+
+true_ccd = CCDSet.random_with_sparsity(X, 0.8)
+len(true_ccd)
+
+true_support = true_ccd.support()
+len(true_support)
+true_support.is_complete()
+
+references = [true_ccd.restrict(restriction) for restriction in restrictions]
+reference_supports = [true_support.restrict(restriction) for restriction in restrictions]
+
+common_support_1by1 = reference_supports[0]
+print(len(common_support_1by1))
+for ref_sup in reference_supports[1:]:
+    common_support_1by1 = common_support_1by1.mutualize(ref_sup)
+    print(len(common_support_1by1))
+    print(common_support_1by1.is_complete())
+common_support_1by1.is_complete(verbose=True)
+
+common_support = SubsplitSupport.common_support(reference_supports)
+
+true_support.to_set().issubset(common_support_1by1.to_set())
+true_support.to_set() == common_support_1by1.to_set()
+
+starting_ccd = CCDSet.random_from_support(common_support_1by1)
+true_ccd.kl_divergence(starting_ccd)
+ccd_all, kl_list_all, true_kl_list_all = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+true_ccd.kl_divergence(ccd_all)
+
+# PCSS experiments
+
+from importlib import reload
+import classes
+
+reload(classes)
+from classes import *
+
+tree = MyTree.random("ABCDE")
+print(tree)
+list(tree.traverse_subsplits())
+list(tree.traverse_pcsss())
+
+# Restriction experiment for unit tests
+
+reload(classes)
+from classes import *
+
+X = Clade("ABCDEF")
+restriction = Clade("ABCDE")
+
+ccd = CCDSet.random_with_sparsity(X, sparsity=0.7)
+dist = ccd.tree_distribution()
+dist_res = dist.restrict(restriction)
+
+res_ccd = ccd.restrict(restriction)
+res_ccd_dist = res_ccd.tree_distribution()
+
+dist_res.kl_divergence(res_ccd_dist)
+res_ccd_dist.kl_divergence(dist_res)
+
+res_ccd_dist_ccd = CCDSet.from_tree_distribution(res_ccd_dist)
+
+res_ccd.kl_divergence(res_ccd_dist_ccd)
+res_ccd_dist_ccd.kl_divergence(res_ccd)
+
+dist_res_ccd = CCDSet.from_tree_distribution(dist_res)
+
+dist_res_ccd.kl_divergence(res_ccd)
+res_ccd.kl_divergence(dist_res_ccd)
+
+dist_res_ccd_dist = dist_res_ccd.tree_distribution()
+
+res_ccd_dist.kl_divergence(dist_res_ccd_dist)
+dist_res_ccd_dist.kl_divergence(res_ccd_dist)
+
+# PCSS initial experiments (for potential unit tests)
+
+reload(classes)
+from classes import *
+
+pcss_conditional_probs = {
+    PCSS(Subsplit("ABCD"), Subsplit("AB", "CD")): 0.4,
+    PCSS(Subsplit("ABCD"), Subsplit("ABC", "D")): 0.6,
+    PCSS(Subsplit("ABC", "D"), Subsplit("AB", "C")): 2/3,
+    PCSS(Subsplit("ABC", "D"), Subsplit("A", "BC")): 1/3,
+    PCSS(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+    PCSS(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+}
+scd = SCDSet(pcss_conditional_probs)
+scd.normalize()
+result = scd.support()
+# result = PCSSSupport()
+# result.add(PCSS(Subsplit("ABCD"), Subsplit("AB", "CD")))
+# result.update(set(scd.support()))
+# for pcss in scd.iter_pcss(): result.add(pcss)
+result
+result.is_complete(verbose=True)
+scd.check_distributions()
+scd.check()
+tree = MyTree("((A,(B,C)),D);")
+list(tree.traverse_pcsss())
+scd.log_likelihood(tree)
+math.log(0.2)
+
+# PCMiniSet random experiments
+
+parent = Subsplit("ABCD", "EFG")
+pcmini = PCMiniSet.random(parent)
+pcmini
+
+pcmini2 = PCMiniSet.random_with_sparsity(parent, 0.5)
+pcmini2
+
+scd = SCDSet.random("ABCD")
+scd
+len(scd)
+scd.check()
+
+tree = scd.random_tree()
+print(tree)
+
+big_scd = SCDSet.random("ABCDEFG")
+big_tree = big_scd.random_tree()
+print(big_tree)
+
+# SCD tree_distribution
+
+reload(classes)
+from classes import *
+
+pcss_conditional_probs = {
+    PCSS(Subsplit("ABCD"), Subsplit("AB", "CD")): 0.4,
+    PCSS(Subsplit("ABCD"), Subsplit("ABC", "D")): 0.6,
+    PCSS(Subsplit("ABC", "D"), Subsplit("AB", "C")): 2/3,
+    PCSS(Subsplit("ABC", "D"), Subsplit("A", "BC")): 1/3,
+    PCSS(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+    PCSS(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+}
+scd = SCDSet(pcss_conditional_probs)
+scd.normalize()
+
+tree_dist = scd.tree_distribution(verbose=True)
+print(tree_dist)
+
+tree = MyTree("((A,(B,C)),D);")
+print(tree)
+
+scd.log_likelihood(tree)
+tree_dist.get_log(tree)
+
+# SCD random tree_distribution
+
+reload(classes)
+from classes import *
+
+scd = SCDSet.random("ABCDE")
+tree_dist = scd.tree_distribution()
+
+len(scd)
+len(tree_dist)
+
+abs_diffs = []
+rel_diffs = []
+for tree in tree_dist:
+    scd_lik = scd.likelihood(tree)
+    tre_lik = tree_dist.get(tree)
+    abs_diff = abs(scd_lik - tre_lik)
+    rel_diff = abs_diff/abs(tre_lik)
+    print(f"Abs diff: {abs_diff:8.4g}, Rel diff: {rel_diff:8.4g}")
+    abs_diffs.append(abs_diff)
+    rel_diffs.append(rel_diff)
+
+# SCD test parent_probabilities
+
+import random
+
+reload(classes)
+from classes import *
+
+scd = SCDSet.random("ABCDE")
+tree_dist = scd.tree_distribution()
+parent_probs = scd.subsplit_probabilities()
+
+parent, prob = random.choice(list(parent_probs.items()))
+
+tree_dist.feature_prob(parent)
+prob
+
+# Double check CCD probability functions
+# Result: iter_ functions have multiple entries per each subsplit
+
+reload(classes)
+from classes import *
+
+ccd = CCDSet.random("ABCDEF")
+
+uncond = ccd.unconditional_probabilities()
+for subsplit, joint_prob in ccd.iter_unconditional_probabilities():
+    print(f"Subsplit {subsplit}: {uncond[subsplit]:8.4g} {joint_prob:8.4g}")
+
+len(uncond)
+len(list(ccd.iter_unconditional_probabilities()))
+
+# pcss_probabilities experiment
+
+import random
+
+reload(classes)
+from classes import *
+
+scd = SCDSet.random("ABCDE")
+tree_dist = scd.tree_distribution()
+pcss_probs = scd.pcss_probabilities()
+
+pcss, prob = random.choice(list(pcss_probs.items()))
+
+tree_dist.prob_all([pcss.parent, pcss.child])
+prob
+
+# SCDSet kl implementations
+
+reload(classes)
+from classes import *
+
+pcss_conditional_probs1 = {
+    PCSS(Subsplit("ABCD"), Subsplit("AB", "CD")): 0.4,
+    PCSS(Subsplit("ABCD"), Subsplit("ABC", "D")): 0.6,
+    PCSS(Subsplit("ABC", "D"), Subsplit("AB", "C")): 2 / 3,
+    PCSS(Subsplit("ABC", "D"), Subsplit("A", "BC")): 1 / 3,
+    PCSS(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+    PCSS(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+}
+pcss_conditional_probs2 = {
+    PCSS(Subsplit("ABCD"), Subsplit("AB", "CD")): 0.5,
+    PCSS(Subsplit("ABCD"), Subsplit("ABC", "D")): 0.5,
+    PCSS(Subsplit("ABC", "D"), Subsplit("AB", "C")): 0.5,
+    PCSS(Subsplit("ABC", "D"), Subsplit("A", "BC")): 0.5,
+    PCSS(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+    PCSS(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+}
+scd1 = SCDSet(pcss_conditional_probs1)
+scd1.normalize()
+dist1 = scd1.tree_distribution()
+scd2 = SCDSet(pcss_conditional_probs2)
+scd2.normalize()
+dist2 = scd2.tree_distribution()
+
+dist1.kl_divergence(dist2)  # 0.05411532090976828
+scd1.kl_divergence(scd2)  # 0.05411532090976828
+dist1.kl_divergence(scd2)  # 0.05411532090976828
+scd1.kl_divergence(dist2)  # 0.05411532090976828
+
+# random SCD kl implementation
+
+taxa = Clade("ABCDE")
+ccd1 = CCDSet.random(taxa)
+ccd2 = CCDSet.random(taxa)
+dist1 = ccd1.tree_distribution()
+dist2 = ccd2.tree_distribution()
+dist_dist = dist1.kl_divergence(dist2)
+ccd_dist = ccd1.kl_divergence(dist2)
+ccd_ccd = ccd1.kl_divergence(ccd2)
+dist_ccd = dist1.kl_divergence(ccd2)
+
+dist_dist, ccd_dist
+ccd_dist, ccd_ccd
+ccd_ccd, dist_ccd
+dist_ccd, dist_dist
+
+# SCD restrict
+
+reload(classes)
+from classes import *
+
+pcss_conditional_probs = {
+    PCSS(Subsplit("ABCD"), Subsplit("AB", "CD")): 0.4,
+    PCSS(Subsplit("ABCD"), Subsplit("ABC", "D")): 0.6,
+    PCSS(Subsplit("ABC", "D"), Subsplit("AB", "C")): 2/3,
+    PCSS(Subsplit("ABC", "D"), Subsplit("A", "BC")): 1/3,
+    PCSS(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+    PCSS(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+    PCSS(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+}
+scd = SCDSet(pcss_conditional_probs)
+scd.normalize()
+
+restriction = set("ABC")
+restricted_scd = scd.restrict(restriction)
+
+# SCD subsplit_to_subsplit
+
+reload(classes)
+from classes import *
+
+root_clade = Clade("ABCDE")
+root_subsplit = Subsplit(root_clade)
+scd = SCDSet.random(root_clade)
+tree_dist = scd.tree_distribution()
+
+s2s_probs = scd.subsplit_to_subsplit_probabilities()
+s_probs = scd.subsplit_probabilities()
+
+parent = Subsplit(Clade("ABD"), Clade("C"))
+s_probs[parent], s2s_probs[parent][root_subsplit]
+s2s_probs[parent][parent], 1.0
+
+child = Subsplit(Clade("A"), Clade("BD"))
+den = tree_dist.feature_prob(parent)
+num = tree_dist.prob_all([parent, child])
+s2s_probs[child][parent], num / den
+
+# SCD restrict
+
+reload(classes)
+from classes import *
+
+root_clade = Clade("ABCD")
+restriction = Clade("ABC")
+
+scd = SCDSet.random_with_sparsity(root_clade, sparsity=0.0)
+dist = scd.tree_distribution()
+dist_res = dist.restrict(restriction)
+
+scd_res = scd.restrict(restriction, verbose=True)
+scd_res_dist = scd_res.tree_distribution()
+
+scd_res_dist_scd = SCDSet.from_tree_distribution(scd_res_dist)
+
+scd_res.kl_divergence(scd_res_dist_scd), 0.0
+scd_res_dist_scd.kl_divergence(scd_res), 0.0
+
+dist_res_scd = SCDSet.from_tree_distribution(dist_res)
+
+dist_res_scd.kl_divergence(scd_res), 0.0
+scd_res.kl_divergence(dist_res_scd), 0.0
+
+dist_res_scd_dist = dist_res_scd.tree_distribution()
+
+scd_res_dist.kl_divergence(dist_res_scd_dist), 0.0
+dist_res_scd_dist.kl_divergence(scd_res_dist), 0.0
+
+dist_res_scd.kl_divergence_scd_verbose(scd_res)
+scd_res.kl_divergence_scd_verbose(dist_res_scd)
+
+set(scd_res[scd_res.root_subsplit()].data.keys())==set(dist_res_scd[dist_res_scd.root_subsplit()].data.keys())
+
+for child in scd_res[scd_res.root_subsplit()].data.keys():
+    root = scd_res.root_subsplit()
+    print(f"Child: {child} -- scd_res: {scd_res[root][child]:8.4g} -- dist_res_scd: {dist_res_scd[root][child]:8.4g}")
+
+# SCD restriction properties
+
+reload(classes)
+from classes import *
+
+root_clade = Clade("ABCDEF")
+restriction = Clade("ABCD")
+
+scd = SCDSet.random_with_sparsity(root_clade, sparsity=0.0)
+dist = scd.tree_distribution()
+dist_res = dist.restrict(restriction)
+
+s_probs = scd.subsplit_probabilities()
+restricted_subsplit = Subsplit("AB", "CD")
+
+result = 0.0
+for subsplit, prob in s_probs.items():
+    if subsplit.restrict(restriction) == restricted_subsplit:
+        result += prob
+
+result
+dist_res.feature_prob(restricted_subsplit)
+
+# subsplit probability derivative
+
+from importlib import reload
+import classes
+import random
+
+reload(classes)
+from classes import *
+
+
+def scd_subsplit_derivative(prob_of: Subsplit, wrt: PCSS, scd: SCDSet, s2s: dict=None):
+    root_subsplit = scd.root_subsplit()
+    parent1 = wrt.parent
+    child1 = wrt.child
+    parent2 = prob_of.clade()
+    if not prob_of.valid_ancestor(parent1):
+        return 0.0
+    if s2s is None:
+        s2s = scd.subsplit_to_subsplit_probabilities()
+    uncond_wrt = s2s.get(parent1, dict()).get(root_subsplit, 0.0) * scd[wrt]
+    child_to_prob_of = s2s.get(prob_of, dict()).get(child1, 0.0)
+    parent_to_prob_of = s2s.get(prob_of, dict()).get(parent1, 0.0)
+    return uncond_wrt * (child_to_prob_of - parent_to_prob_of)
+
+
+def scd_estimate_subsplit_derivative(prob_of: Subsplit, wrt: PCSS, scd: SCDSet, delta: float=0.0001):
+    parent = wrt.parent
+    scd2 = scd.copy()
+    scd2.add_log(wrt, delta)
+    scd2.normalize(parent)
+    uncond = scd.subsplit_probabilities()
+    uncond2 = scd2.subsplit_probabilities()
+    est_deriv = (uncond2[prob_of] - uncond[prob_of]) / delta
+    return est_deriv
+
+
+scd = SCDSet.random("ABCDEF")
+delta = 0.00001
+
+s2s = scd.subsplit_to_subsplit_probabilities()
+
+prob_of = random.choice(list(s2s.keys()))
+wrt_parent = random.choice(list(s2s[prob_of].keys()))
+wrt_child = random.choice(list(scd[wrt_parent].compatible_distribution(prob_of).keys()))
+wrt = PCSS(wrt_parent, wrt_child)
+
+scd2 = scd.copy()
+scd2.add_log(wrt, delta)
+scd2.normalize()
+uncond = scd.subsplit_probabilities()
+uncond2 = scd2.subsplit_probabilities()
+by_hand = (uncond2[prob_of] - uncond[prob_of]) / delta
+
+est_deriv = scd_estimate_subsplit_derivative(prob_of=prob_of, wrt=wrt, scd=scd, delta=delta)
+theo_deriv = scd_subsplit_derivative(prob_of=prob_of, wrt=wrt, scd=scd, s2s=s2s)
+print(abs(theo_deriv - est_deriv))
+print(abs(theo_deriv - est_deriv)/abs(est_deriv))
+
+tree_dist = scd.tree_distribution()
+tree_dist2 = scd2.tree_distribution()
+tree_num = tree_dist.feature_prob(prob_of)
+tree_num2 = tree_dist2.feature_prob(prob_of)
+by_hand2 = (tree_num2 - tree_num) / delta
+print(f"{by_hand}\n{est_deriv}\n{theo_deriv}\n{by_hand2}")
+
+## All x all experiment
+
+theo_res_simple = dict()
+est_res_simple = dict()
+for prob_of_for in scd.iter_subsplits():
+    if prob_of_for not in theo_res_simple:
+        theo_res_simple[prob_of_for] = dict()
+    if prob_of_for not in est_res_simple:
+        est_res_simple[prob_of_for] = dict()
+    for wrt_for in scd.iter_pcss():
+        theo_res_simple[prob_of_for][wrt_for] = scd_subsplit_derivative(prob_of=prob_of_for, wrt=wrt_for, scd=scd, s2s=s2s)
+        est_res_simple[prob_of_for][wrt_for] = scd_estimate_subsplit_derivative(prob_of=prob_of_for, wrt=wrt_for, scd=scd, delta=delta)
+        print(f"{prob_of_for} wrt {wrt_for}")
+        print(f"Theo: {theo_res_simple[prob_of_for][wrt_for]:8.4g}")
+        print(f"Est:  {est_res_simple[prob_of_for][wrt_for]:8.4g}")
+
+
+for prob_of_for in theo_res_simple:
+    for wrt_for in theo_res_simple[prob_of_for]:
+        theo = theo_res_simple[prob_of_for][wrt_for]
+        est = est_res_simple[prob_of_for][wrt_for]
+        if abs(est) < 1e-12:
+            abs_diff = abs(theo - est)
+            if abs_diff > 1e-8:
+                print(f"{prob_of_for} wrt {wrt_for}: abs diff={abs_diff:10.6g}")
+        else:
+            rel_diff = abs(theo - est)/abs(est)
+            if rel_diff > 1e-4:
+                print(f"{prob_of_for} wrt {wrt_for}: rel diff={rel_diff:10.6g}")
+
+
+# subsplit to subsplit probability derivative
+
+reload(classes)
+from classes import *
+
+
+def scd_subsplit_to_subsplit_cond_derivative(prob_of: Subsplit, cond_on: Subsplit, wrt: PCSS, scd: SCDSet, s2s: dict=None):
+    # root_subsplit = scd.root_subsplit()
+    parent1 = wrt.parent
+    child1 = wrt.child
+    # parent2 = prob_of.clade()
+    if not prob_of.valid_ancestor(parent1):
+        return 0.0
+    if s2s is None:
+        s2s = scd.subsplit_to_subsplit_probabilities()
+    uncond_wrt = s2s.get(parent1, dict()).get(cond_on, 0.0) * scd[wrt]
+    child_to_prob_of = s2s.get(prob_of, dict()).get(child1, 0.0)
+    parent_to_prob_of = s2s.get(prob_of, dict()).get(parent1, 0.0)
+    return uncond_wrt * (child_to_prob_of - parent_to_prob_of)
+
+
+def scd_estimate_subsplit_to_subsplit_cond_derivative(prob_of: Subsplit, cond_on: Subsplit, wrt: PCSS, scd: SCDSet, delta: float=0.0001):
+    parent = wrt.parent
+    scd2 = scd.copy()
+    scd2.add_log(wrt, delta)
+    scd2.normalize(parent)
+    s2s = scd.subsplit_to_subsplit_probabilities()
+    s2s2 = scd2.subsplit_to_subsplit_probabilities()
+    est_deriv = (s2s2[prob_of][cond_on] - s2s[prob_of][cond_on]) / delta
+    return est_deriv
+
+
+scd = SCDSet.random("ABCDEF")
+delta = 0.00001
+
+s2s = scd.subsplit_to_subsplit_probabilities()
+
+prob_of = random.choice(list(s2s.keys()))
+wrt_parent = random.choice(list(s2s[prob_of].keys()))
+wrt_child = random.choice(list(scd[wrt_parent].compatible_distribution(prob_of).keys()))
+wrt = PCSS(wrt_parent, wrt_child)
+cond_on = random.choice(list(s2s[wrt_parent].keys()))
+
+scd2 = scd.copy()
+scd2.add_log(wrt, delta)
+scd2.normalize()
+s2s = scd.subsplit_to_subsplit_probabilities()
+s2s2 = scd2.subsplit_to_subsplit_probabilities()
+by_hand = (s2s2[prob_of][cond_on] - s2s[prob_of][cond_on]) / delta
+
+est_deriv = scd_estimate_subsplit_to_subsplit_cond_derivative(prob_of=prob_of, cond_on=cond_on, wrt=wrt, scd=scd, delta=delta)
+theo_deriv = scd_subsplit_to_subsplit_cond_derivative(prob_of=prob_of, cond_on=cond_on, wrt=wrt, scd=scd, s2s=s2s)
+print(abs(theo_deriv - est_deriv))
+print(abs(theo_deriv - est_deriv)/abs(est_deriv))
+print(f"{by_hand}\n{est_deriv}\n{theo_deriv}")
+
+tree_dist = scd.tree_distribution()
+tree_dist2 = scd2.tree_distribution()
+tree_num = tree_dist.prob_all([prob_of, cond_on])
+tree_num2 = tree_dist2.prob_all([prob_of, cond_on])
+tree_den = tree_dist.feature_prob(cond_on)
+tree_den2 = tree_dist2.feature_prob(cond_on)
+tree_cond = tree_num/tree_den
+tree_cond2 = tree_num2/tree_den2
+by_hand2 = (tree_cond2 - tree_cond) / delta
+print(f"{by_hand}\n{est_deriv}\n{theo_deriv}\n{by_hand2}")
+
+# via experiment
+
+reload(classes)
+from classes import *
+
+
+def scd_subsplit_via_subsplit_derivative(prob_of: Subsplit, via: Subsplit, wrt: PCSS, scd: SCDSet, s2s: dict=None):
+    root_subsplit = scd.root_subsplit()
+    parent1 = wrt.parent
+    child1 = wrt.child
+    if s2s is None:
+        s2s = scd.subsplit_to_subsplit_probabilities()
+    if parent1.valid_descendant(via):
+        return scd_subsplit_to_subsplit_cond_derivative(prob_of=via, cond_on=root_subsplit, wrt=wrt, scd=scd, s2s=s2s) * s2s[prob_of][via]
+    elif parent1.valid_ancestor(via) and parent1.valid_descendant(prob_of):
+        return s2s[via][root_subsplit] * scd_subsplit_to_subsplit_cond_derivative(prob_of=prob_of, cond_on=via, wrt=wrt, scd=scd, s2s=s2s)
+    else:
+        return 0.0
+
+
+def scd_estimate_subsplit_via_subsplit_derivative(prob_of: Subsplit, via: Subsplit, wrt: PCSS, scd: SCDSet, delta: float=0.0001):
+    root_subsplit = scd.root_subsplit()
+    parent = wrt.parent
+    scd2 = scd.copy()
+    scd2.add_log(wrt, delta)
+    scd2.normalize(parent)
+    s2s = scd.subsplit_to_subsplit_probabilities()
+    s2s2 = scd2.subsplit_to_subsplit_probabilities()
+    est_deriv = (s2s2[prob_of][via]*s2s2[via][root_subsplit] - s2s[prob_of][via]*s2s[via][root_subsplit]) / delta
+    return est_deriv
+
+
+scd = SCDSet.random("ABCDEF")
+root_subsplit = scd.root_subsplit()
+delta = 0.00001
+
+s2s = scd.subsplit_to_subsplit_probabilities()
+
+prob_of = random.choice(list(s2s.keys()))
+wrt_parent = random.choice(list(s2s[prob_of].keys()))
+wrt_child = random.choice(list(scd[wrt_parent].compatible_distribution(prob_of).keys()))
+wrt = PCSS(wrt_parent, wrt_child)
+via = random.choice(list(s2s[prob_of].keys()))
+
+scd2 = scd.copy()
+scd2.add_log(wrt, delta)
+scd2.normalize()
+s2s = scd.subsplit_to_subsplit_probabilities()
+s2s2 = scd2.subsplit_to_subsplit_probabilities()
+by_hand = (s2s2[prob_of][via]*s2s2[via][root_subsplit] - s2s[prob_of][via]*s2s[via][root_subsplit]) / delta
+
+est_deriv = scd_estimate_subsplit_via_subsplit_derivative(prob_of=prob_of, via=via, wrt=wrt, scd=scd, delta=delta)
+theo_deriv = scd_subsplit_via_subsplit_derivative(prob_of=prob_of, via=via, wrt=wrt, scd=scd, s2s=s2s)
+print(abs(theo_deriv - est_deriv))
+print(abs(theo_deriv - est_deriv)/abs(est_deriv))
+print(f"{by_hand}\n{est_deriv}\n{theo_deriv}")
+
+
+# restricted unconditional derivative
+
+reload(classes)
+from classes import *
+
+
+def scd_restricted_subsplit_derivative(restriction: Clade, prob_of: Subsplit, wrt: PCSS, scd: SCDSet, s2s: dict=None):
+    if s2s is None:
+        s2s = scd.subsplit_to_subsplit_probabilities()
+    result = 0.0
+    for subsplit in scd.iter_subsplits():
+        restricted_subsplit = subsplit.restrict(restriction)
+        if restricted_subsplit == prob_of:
+            result += scd_subsplit_derivative(prob_of=subsplit, wrt=wrt, scd=scd, s2s=s2s)
+    return result
+
+
+def scd_estimate_restricted_subsplit_derivative(restriction: Clade, prob_of: Subsplit, wrt: PCSS, scd: SCDSet, delta: float=0.0001):
+    parent = wrt.parent
+    scd2 = scd.copy()
+    scd2.add_log(wrt, delta)
+    scd2.normalize(parent)
+    scd_res = scd.restrict(restriction)
+    scd2_res = scd2.restrict(restriction)
+    uncond = scd_res.subsplit_probabilities()
+    uncond2 = scd2_res.subsplit_probabilities()
+    est_deriv = (uncond2[prob_of] - uncond[prob_of]) / delta
+    return est_deriv
+
+
+scd = SCDSet.random("ABCDEF")
+restriction = Clade("ABCDE")
+delta = 0.00001
+
+s2s = scd.subsplit_to_subsplit_probabilities()
+
+scd_res = scd.restrict(restriction)
+
+prob_of = random.choice(list(scd_res.iter_subsplits()))
+possible = [subsplit for subsplit in scd.iter_subsplits() if subsplit.restrict(restriction) == prob_of]
+prob_of_full = random.choice(possible)
+wrt_parent = random.choice(list(s2s[prob_of_full].keys()))
+wrt_child = random.choice(list(scd[wrt_parent].compatible_distribution(prob_of_full).keys()))
+wrt = PCSS(wrt_parent, wrt_child)
+
+scd2 = scd.copy()
+scd2.add_log(wrt, delta)
+scd2.normalize()
+scd2_res = scd2.restrict(restriction)
+
+uncond = scd_res.subsplit_probabilities()
+uncond2 = scd2_res.subsplit_probabilities()
+by_hand = (uncond2[prob_of] - uncond[prob_of]) / delta
+
+est_deriv = scd_estimate_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, scd=scd, delta=delta)
+theo_deriv = scd_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, scd=scd, s2s=s2s)
+print(abs(theo_deriv - est_deriv))
+print(abs(theo_deriv - est_deriv)/abs(est_deriv))
+
+tree_dist = scd_res.tree_distribution()
+tree_dist2 = scd2_res.tree_distribution()
+tree_num = tree_dist.feature_prob(prob_of)
+tree_num2 = tree_dist2.feature_prob(prob_of)
+by_hand2 = (tree_num2 - tree_num) / delta
+print(f"{by_hand}\n{est_deriv}\n{theo_deriv}\n{by_hand2}")
+
+## All x all experiment
+
+theo_res = dict()
+est_res = dict()
+for prob_of_for in scd_res.iter_subsplits():
+    if prob_of_for not in theo_res:
+        theo_res[prob_of_for] = dict()
+    if prob_of_for not in est_res:
+        est_res[prob_of_for] = dict()
+    for wrt_for in scd.iter_pcss():
+        theo_res[prob_of_for][wrt_for] = scd_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of_for, wrt=wrt_for, scd=scd, s2s=s2s)
+        est_res[prob_of_for][wrt_for] = scd_estimate_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of_for, wrt=wrt_for, scd=scd, delta=delta)
+        print(f"{prob_of_for} wrt {wrt_for}")
+        print(f"Theo: {theo_res[prob_of_for][wrt_for]:8.4g}")
+        print(f"Est:  {est_res[prob_of_for][wrt_for]:8.4g}")
+
+
+# AE:BC wrt ABCE:DF, D:F
+# Theo: -0.005769
+# Est:         0
+
+for prob_of_for in theo_res:
+    for wrt_for in theo_res[prob_of_for]:
+        theo = theo_res[prob_of_for][wrt_for]
+        est = est_res[prob_of_for][wrt_for]
+        if abs(est) < 1e-12:
+            abs_diff = abs(theo - est)
+            if abs_diff > 1e-8:
+                print(f"{prob_of_for} wrt {wrt_for}: abs diff={abs_diff:10.6g}")
+        else:
+            rel_diff = abs(theo - est)/abs(est)
+            if rel_diff > 1e-4:
+                print(f"{prob_of_for} wrt {wrt_for}: rel diff={rel_diff:10.6g}")
+
+# restricted PCSS derivative
+
+reload(classes)
+from classes import *
+
+
+def scd_restricted_pcss_derivative(restriction: Clade, prob_of: PCSS, wrt: PCSS, scd: SCDSet, s2s: dict=None):
+    root_subsplit = scd.root_subsplit()
+    parent = prob_of.parent
+    child = prob_of.child
+    if s2s is None:
+        s2s = scd.subsplit_to_subsplit_probabilities()
+    result = 0.0
+    for destination in s2s:
+        dest_res = destination.restrict(restriction)
+        if dest_res != child:
+            continue
+        for origin in s2s[destination]:
+            orig_res = origin.restrict(restriction)
+            if orig_res != parent or (orig_res.is_trivial() and origin != root_subsplit):
+                continue
+            result += scd_subsplit_via_subsplit_derivative(prob_of=destination, via=origin, wrt=wrt, scd=scd, s2s=s2s)
+    return result
+
+
+def scd_estimate_restricted_pcss_derivative(restriction: Clade, prob_of: PCSS, wrt: PCSS, scd: SCDSet, delta: float=0.0001):
+    parent = wrt.parent
+    scd2 = scd.copy()
+    scd2.add_log(wrt, delta)
+    scd2.normalize(parent)
+    scd_res = scd.restrict(restriction)
+    scd2_res = scd2.restrict(restriction)
+    uncond = scd_res.pcss_probabilities()
+    uncond2 = scd2_res.pcss_probabilities()
+    est_deriv = (uncond2[prob_of] - uncond[prob_of]) / delta
+    return est_deriv
+
+
+scd = SCDSet.random("ABCDEF")
+restriction = Clade("ABCD")
+delta = 0.00001
+
+s2s = scd.subsplit_to_subsplit_probabilities()
+
+scd_res = scd.restrict(restriction)
+
+prob_of = random.choice(list(scd_res.iter_pcss()))
+possible = [subsplit for subsplit in scd.iter_subsplits() if subsplit.restrict(restriction) == prob_of.parent]
+prob_of_full = random.choice(possible)
+wrt_parent = random.choice(list(s2s[prob_of_full].keys()))
+wrt_child = random.choice(list(scd[wrt_parent].compatible_distribution(prob_of_full).keys()))
+wrt = PCSS(wrt_parent, wrt_child)
+
+scd2 = scd.copy()
+scd2.add_log(wrt, delta)
+scd2.normalize()
+scd2_res = scd2.restrict(restriction)
+
+uncond = scd_res.pcss_probabilities()
+uncond2 = scd2_res.pcss_probabilities()
+by_hand = (uncond2[prob_of] - uncond[prob_of]) / delta
+
+est_deriv = scd_estimate_restricted_pcss_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, scd=scd, delta=delta)
+theo_deriv = scd_restricted_pcss_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, scd=scd, s2s=s2s)
+print(abs(theo_deriv - est_deriv))
+print(abs(theo_deriv - est_deriv)/abs(est_deriv))
+
+tree_dist = scd_res.tree_distribution()
+tree_dist2 = scd2_res.tree_distribution()
+tree_num = tree_dist.feature_prob(prob_of)
+tree_num2 = tree_dist2.feature_prob(prob_of)
+by_hand2 = (tree_num2 - tree_num) / delta
+print(f"{by_hand}\n{est_deriv}\n{theo_deriv}\n{by_hand2}")
+
+# restricted conditional derivative
+
+
+reload(classes)
+from classes import *
+
+
+def scd_restricted_conditional_derivative(restriction: Clade, prob_of: PCSS, wrt: PCSS, scd: SCDSet, s2s: dict=None, restricted_scd: SCDSet=None):
+    if s2s is None:
+        s2s = scd.subsplit_to_subsplit_probabilities()
+    if restricted_scd is None:
+        restricted_scd = scd.restrict(restriction)
+    restricted_subsplit_probs = restricted_scd.subsplit_probabilities()
+    restricted_pcss_probs = restricted_scd.pcss_probabilities()
+    # Quotient rule d(top/bot) = (bot*dtop-top*dbot) / bot**2
+    top = restricted_pcss_probs[prob_of]
+    print(f"top: {top}")
+    bot = restricted_subsplit_probs[prob_of.parent]
+    print(f"bot: {bot}")
+    dtop = scd_restricted_pcss_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, scd=scd, s2s=s2s)
+    print(f"dtop: {dtop}")
+    dbot = scd_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of.parent, wrt=wrt, scd=scd, s2s=s2s)
+    print(f"dbot: {dbot}")
+    return (bot*dtop - top*dbot) / bot**2
+
+
+def scd_estimate_restricted_conditional_derivative(restriction: Clade, prob_of: PCSS, wrt: PCSS, scd: SCDSet, delta: float=0.0001):
+    parent = wrt.parent
+    scd2 = scd.copy()
+    scd2.add_log(wrt, delta)
+    scd2.normalize(parent)
+    scd_res = scd.restrict(restriction)
+    scd2_res = scd2.restrict(restriction)
+    est_deriv = (scd2_res[prob_of] - scd_res[prob_of]) / delta
+    return est_deriv
+
+
+scd = SCDSet.random("ABCDEF")
+restriction = Clade("ABCDE")
+delta = 0.00001
+
+s2s = scd.subsplit_to_subsplit_probabilities()
+
+scd_res = scd.restrict(restriction)
+
+# prob_of = random.choice(list(scd_res.iter_pcss()))
+# possible = [subsplit for subsplit in scd.iter_subsplits() if subsplit.restrict(restriction) == prob_of.parent]
+# prob_of_full = random.choice(possible)
+# wrt_parent = random.choice(list(s2s[prob_of_full].keys()))
+# wrt_child = random.choice(list(scd[wrt_parent].compatible_distribution(prob_of_full).keys()))
+# wrt = PCSS(wrt_parent, wrt_child)
+
+# prob_of = PCSS(Subsplit("ABC", "D"), Subsplit("AB", "C"))
+# prob_of=PCSS(Subsplit("ACE", "BD"), Subsplit("AC", "E"))
+# wrt = PCSS(Subsplit("ABCDEF"), Subsplit("ACEF", "BD"))
+prob_of = PCSS(Subsplit("ADE", "B"), Subsplit("AD", "E"))
+wrt = PCSS(Subsplit(Clade("ADE"), Clade("BF")), Subsplit(Clade("A"), Clade("DE")))
+
+scd2 = scd.copy()
+scd2.add_log(wrt, delta)
+scd2.normalize()
+scd2_res = scd2.restrict(restriction)
+
+by_hand = (scd2_res[prob_of] - scd_res[prob_of]) / delta
+by_hand
+
+est_deriv = scd_estimate_restricted_conditional_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, scd=scd, delta=delta)
+theo_deriv = scd_restricted_conditional_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, scd=scd, s2s=s2s)
+print(abs(theo_deriv - est_deriv))
+print(abs(theo_deriv - est_deriv)/abs(est_deriv))
+
+tree_dist = scd_res.tree_distribution()
+tree_dist2 = scd2_res.tree_distribution()
+tree_num = tree_dist.feature_prob(prob_of)
+tree_den = tree_dist.feature_prob(prob_of.parent)
+tree_num2 = tree_dist2.feature_prob(prob_of)
+tree_den2 = tree_dist2.feature_prob(prob_of.parent)
+by_hand2 = (tree_num2/tree_den2 - tree_num/tree_den) / delta
+print(f"{by_hand}\n{est_deriv}\n{theo_deriv}\n{by_hand2}")
+
+scd_restricted_pcss_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, scd=scd, s2s=s2s)
+scd_estimate_restricted_pcss_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, scd=scd, delta=delta)
+scd_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of.parent, wrt=wrt, scd=scd, s2s=s2s)
+scd_estimate_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of.parent, wrt=wrt, scd=scd, delta=delta)
+
+# restricted KL derivative
+
+
+reload(classes)
+from classes import *
+
+
+def scd_restricted_kl_derivative(wrt: PCSS, scd: SCDSet, other: SCDSet, s2s: dict=None, restricted_scd: SCDSet=None):
+    restriction = other.root_clade()
+    if not restriction.issubset(scd.root_clade()):
+        raise ValueError("Non-concentric taxon sets.")
+    if s2s is None:
+        s2s = scd.subsplit_to_subsplit_probabilities()
+    if restricted_scd is None:
+        restricted_scd = scd.restrict(restriction)
+    # restricted_subsplit_probs = restricted_scd.subsplit_probabilities()
+    # restricted_pcss_probs = restricted_scd.pcss_probabilities()
+    other_pcss_probs = other.pcss_probabilities()
+    result = 0.0
+    for other_pcss in other.iter_pcss():
+        other_pcss_prob = other_pcss_probs[other_pcss]
+        # print(f"other_pcss_prob={other_pcss_prob}")
+        restricted_cond = restricted_scd[other_pcss]
+        # print(f"restricted_cond={restricted_cond}")
+        print(f"restriction={restriction}, prob_of={other_pcss}, wrt={wrt}")
+        restricted_cond_deriv = scd_restricted_conditional_derivative(restriction=restriction, prob_of=other_pcss, wrt=wrt, scd=scd, s2s=s2s, restricted_scd=restricted_scd)
+        print(f"restricted_cond_deriv={restricted_cond_deriv}")
+        intermediate_result = -other_pcss_prob * restricted_cond_deriv / restricted_cond
+        print(f"intermediate_result={intermediate_result}")
+        result += intermediate_result
+
+    return result
+
+
+def scd_estimate_restricted_kl_derivative(wrt: PCSS, scd: SCDSet, other: SCDSet, delta: float=0.0001):
+    parent = wrt.parent
+    scd2 = scd.copy()
+    scd2.add_log(wrt, delta)
+    scd2.normalize(parent)
+    scd_res = scd.restrict(restriction)
+    scd2_res = scd2.restrict(restriction)
+    est_deriv = (other.kl_divergence(scd2_res) - other.kl_divergence(scd_res)) / delta
+    return est_deriv
+
+
+scd = SCDSet.random("ABCDEF")
+restriction = Clade("ABCDE")
+scd_small = SCDSet.random(restriction)
+delta = 0.00001
+
+s2s = scd.subsplit_to_subsplit_probabilities()
+
+scd_res = scd.restrict(restriction)
+
+wrt = random.choice(list(scd.iter_pcss()))
+# possible = [subsplit for subsplit in scd.iter_subsplits() if subsplit.restrict(restriction) == prob_of.parent]
+# prob_of_full = random.choice(possible)
+# wrt_parent = random.choice(list(s2s[prob_of_full].keys()))
+# wrt_child = random.choice(list(scd[wrt_parent].compatible_distribution(prob_of_full).keys()))
+# wrt = PCSS(wrt_parent, wrt_child)
+
+scd2 = scd.copy()
+scd2.add_log(wrt, delta)
+scd2.normalize()
+scd2_res = scd2.restrict(restriction)
+
+by_hand = (scd_small.kl_divergence(scd2_res) - scd_small.kl_divergence(scd_res)) / delta
+by_hand
+
+est_deriv = scd_estimate_restricted_kl_derivative(wrt=wrt, scd=scd, other=scd_small, delta=delta)
+theo_deriv = scd_restricted_kl_derivative(wrt=wrt, scd=scd, other=scd_small, s2s=s2s)
+print(abs(theo_deriv - est_deriv))
+print(abs(theo_deriv - est_deriv)/abs(est_deriv))
+
+tree_dist = scd_res.tree_distribution()
+tree_dist2 = scd2_res.tree_distribution()
+small_tree_dist = scd_small.tree_distribution()
+by_hand2 = (small_tree_dist.kl_divergence(tree_dist2) - small_tree_dist.kl_divergence(tree_dist)) / delta
+print(f"{by_hand}\n{est_deriv}\n{theo_deriv}\n{by_hand2}")
+
+test_prob_of = PCSS(Subsplit("ADE", "B"), Subsplit("AD", "E"))
+test_wrt=PCSS(Subsplit(Clade("ADE"), Clade("BF")), Subsplit(Clade("A"), Clade("DE")))
+scd_restricted_conditional_derivative(restriction=restriction, prob_of=test_prob_of, wrt=test_wrt, scd=scd, s2s=s2s)
+scd_estimate_restricted_conditional_derivative(restriction=restriction, prob_of=test_prob_of, wrt=test_wrt, scd=scd, delta=delta)
 
 
 
