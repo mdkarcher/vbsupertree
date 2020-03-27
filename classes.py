@@ -56,6 +56,8 @@ class MyTree:
             return self.check_clade(item)
         if isinstance(item, Subsplit):
             return self.check_subsplit(item)
+        if isinstance(item, SubsplitClade):
+            return self.check_subsplit(item.subsplit)
         if isinstance(item, PCSS):
             return self.check_pcss(item)
         return item in self.root_clade()
@@ -504,12 +506,51 @@ class Subsplit:
         return Subsplit.from_node(node.up)
 
 
+class SubsplitClade:
+    def __init__(self, subsplit: Subsplit, clade: Clade):
+        if not isinstance(subsplit, Subsplit):
+            raise TypeError("Argument 'subsplit' not of class Subsplit.")
+        if not isinstance(clade, Clade):
+            raise TypeError("Argument 'clade' not of class Clade.")
+        if clade not in subsplit:
+            raise ValueError("Argument 'clade' not a valid child of argument 'subsplit'.")
+        self.subsplit = subsplit
+        self.clade = clade
+
+    def __eq__(self, other):
+        if not isinstance(other, SubsplitClade):
+            return False
+        return self.subsplit == other.subsplit and self.clade == other.clade
+
+    def __hash__(self):
+        return hash((self.subsplit, self.clade))
+
+    def __repr__(self):
+        return f"SubsplitClade({repr(self.subsplit)}, {repr(self.clade)})"
+
+    def __str__(self):
+        sister = self.subsplit.clade1 if self.subsplit.clade2 == self.clade else self.subsplit.clade2
+        return f"{str(sister)}/{str(self.clade)}"
+
+    def restrict(self, taxon_set):
+        taxon_set = Clade(taxon_set)
+        restricted_subsplit = self.subsplit.restrict(taxon_set)
+        restricted_clade = Clade(self.clade & taxon_set)
+        return SubsplitClade(subsplit=restricted_subsplit, clade=restricted_clade)
+
+
 class PCSS:
     def __init__(self, parent, child):
-        assert isinstance(parent, Subsplit) or isinstance(parent, Clade)
-        assert isinstance(child, Subsplit)
+        if not (isinstance(parent, Subsplit) or isinstance(parent, Clade) or isinstance(parent, SubsplitClade)):
+            raise TypeError("Argument 'parent' not a Subsplit, Clade, or SubsplitClade.")
+        if not isinstance(child, Subsplit):
+            raise TypeError("Argument 'child' not a Subsplit.")
         if isinstance(parent, Clade):
             parent = Subsplit(parent)
+        if isinstance(parent, SubsplitClade):
+            if parent.clade != child.clade():
+                raise ValueError("Child clade of argument 'parent' not equal to parent clade of argument 'child'.")
+            parent = parent.subsplit
         self.parent = parent
         self.child = child
 
@@ -532,6 +573,9 @@ class PCSS:
 
     def is_valid(self):
         return self.check()
+
+    def parent_clade(self):
+        return SubsplitClade(self.parent, self.child.clade())
 
     def restrict(self, taxon_set):
         taxon_set = set(taxon_set)
@@ -921,7 +965,7 @@ class PCMiniSupport:
 
 
 # TODO: Lots of work here
-class PCSSSupport:
+class PCSSSupport_old:
     def __init__(self, arg=None, include_trivial=False):
         self.data = dict()
         self.include_trivial = include_trivial
@@ -933,7 +977,7 @@ class PCSSSupport:
             join_str = '\n'
         else:
             join_str = ''
-        return join_str.join(("PCSSSupport(", pretty_repr, ")"))
+        return join_str.join(("PCSSSupport_old(", pretty_repr, ")"))
 
     def __str__(self):
         return str(self.to_string_dict())
@@ -949,7 +993,7 @@ class PCSSSupport:
         return self.data[parent]
 
     def __eq__(self, other):
-        if not isinstance(other, PCSSSupport):
+        if not isinstance(other, PCSSSupport_old):
             return False
         return self.to_set() == other.to_set()
 
@@ -968,7 +1012,7 @@ class PCSSSupport:
             return
         if isinstance(arg, PCSS):
             arg = [arg]
-        if isinstance(arg, PCSSSupport):
+        if isinstance(arg, PCSSSupport_old):
             arg = arg.to_set()
         try:
             for pcss in arg:
@@ -1016,7 +1060,7 @@ class PCSSSupport:
         return subsplit in self.data.keys()
 
     def restrict(self, taxon_set):
-        result = PCSSSupport(include_trivial=self.include_trivial)
+        result = PCSSSupport_old(include_trivial=self.include_trivial)
         for parent in self.data:
             result.update(pcss.restrict(taxon_set) for pcss in self[parent].to_pcss_set())
         return result
@@ -1035,7 +1079,7 @@ class PCSSSupport:
 
     def random_tree(self):
         if not self.is_complete():
-            raise ValueError("PCSSSupport not complete, no tree possible.")
+            raise ValueError("PCSSSupport_old not complete, no tree possible.")
         root_clade = self.root_clade()
         tree = MyTree()
         parent_stack = [(tree.tree, Subsplit(root_clade), root_clade)]
@@ -1063,11 +1107,11 @@ class PCSSSupport:
 
     def all_strictly_complete_supports(self, verbose=False):
         # if not self.is_complete():
-        #     print("Error: PCSSSupport not complete, no tree possible.")
+        #     print("Error: PCSSSupport_old not complete, no tree possible.")
         #     return
         root_clade = self.root_clade()
         support_list = []
-        big_stack = [(PCSSSupport(), [(Subsplit(root_clade), root_clade)])]
+        big_stack = [(PCSSSupport_old(), [(Subsplit(root_clade), root_clade)])]
         while big_stack:
             current_support, parent_stack = big_stack.pop()
             if verbose:
@@ -1084,7 +1128,7 @@ class PCSSSupport:
             for new_pcsss in product(*possibilities):
                 if verbose:
                     print(f"Examining possibility: {new_pcsss}")
-                new_support = PCSSSupport(current_support)
+                new_support = PCSSSupport_old(current_support)
                 new_parent_stack = []
                 for pcss in new_pcsss:
                     new_support.add(pcss)
@@ -1112,8 +1156,8 @@ class PCSSSupport:
         return [support.random_tree() for support in strict_supports]
 
     def mutualize(self, other):
-        assert isinstance(other, PCSSSupport)
-        result = PCSSSupport(include_trivial=self.include_trivial)
+        assert isinstance(other, PCSSSupport_old)
+        result = PCSSSupport_old(include_trivial=self.include_trivial)
         root_clade1 = self.root_clade()
         root_clade2 = other.root_clade()
         big_clade = root_clade1 | root_clade2
@@ -1151,6 +1195,295 @@ class PCSSSupport:
             pcss = PCSS.from_node(node)
             if not pcss.child.is_trivial():
                 self.add(pcss)
+
+    @staticmethod
+    def from_tree(tree):
+        # if isinstance(tree, MyTree):
+        #     tree = tree.tree
+        result = PCSSSupport_old()
+        result.add_tree(tree)
+        return result
+
+    @staticmethod
+    def from_trees(trees):
+        # if isinstance(tree, MyTree):
+        #     tree = tree.tree
+        result = PCSSSupport_old()
+        for tree in trees:
+            result.add_tree(tree)
+        return result
+
+
+# TODO: Lots of work here
+class PCSSSupport:
+    def __init__(self, arg=None):
+        self.data = dict()
+        self.update(arg)
+
+    def __repr__(self):
+        pretty_repr = pprint.pformat(self.to_set())
+        if '\n' in pretty_repr:
+            join_str = '\n'
+        else:
+            join_str = ''
+        return join_str.join(("PCSSSupport(", pretty_repr, ")"))
+
+    def __str__(self):
+        return str(self.to_string_dict())
+        # return pprint.pformat(set(map(str, self.to_set())))
+
+    def __iter__(self):
+        yield from iter(self.to_set())
+
+    def __getitem__(self, parent):
+        if isinstance(parent, SubsplitClade):
+            return self.data[parent]
+        if isinstance(parent, Subsplit):
+            return tuple(self.data[SubsplitClade(parent, child)] for child in parent.nontrivial_children())
+        raise TypeError("Argument 'parent' not SubsplitClade or Subsplit.")
+
+    def __eq__(self, other):
+        if not isinstance(other, PCSSSupport):
+            return False
+        return self.to_set() == other.to_set()
+
+    def add(self, pcss):
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        if not pcss.is_valid():
+            print(f"Warning: argument pcss ({str(pcss)}) is not valid, skipping")
+            return
+        parent_clade = pcss.parent_clade()
+        if parent_clade not in self.data:
+            self.data[parent_clade] = set()
+        self.data[parent_clade].add(pcss.child)
+
+    def get(self, parent, default=None):
+        if isinstance(parent, SubsplitClade):
+            return self.data.get(parent, default)
+        if isinstance(parent, Subsplit):
+            return tuple(self.data.get(SubsplitClade(parent, child), default) for child in parent.nontrivial_children())
+        raise TypeError("Argument 'parent' not SubsplitClade or Subsplit.")
+
+    def update(self, arg):
+        if arg is None:
+            return
+        if isinstance(arg, PCSS):
+            arg = [arg]
+        if isinstance(arg, PCSSSupport):
+            arg = arg.to_set()
+        try:
+            for pcss in arg:
+                if not isinstance(pcss, PCSS):
+                    print(f"{pcss} is not a PCSS, skipping")
+                    continue
+                self.add(pcss)
+        except TypeError:
+            print(f"Error: {arg} is not PCSS or Iterable.")
+
+    def get_taxon_set(self):
+        result = set().union(*(parent_clade.subsplit.clade() for parent_clade in self.data))
+        # for parent_clade in self.data:
+        #     result |= parent_clade.subsplit.clade()
+        return result
+
+    def root_clade(self):
+        return Clade(self.get_taxon_set())
+
+    def root_subsplit(self):
+        return Subsplit(self.root_clade())
+
+    def root_subsplit_clade(self):
+        root_clade = self.root_clade()
+        return SubsplitClade(Subsplit(root_clade), Clade(root_clade))
+
+    def is_complete(self, verbose=False):
+        result = True
+        root_subsplit_clade = self.root_subsplit_clade()
+        if root_subsplit_clade not in self.data:
+            if verbose:
+                print("No root subsplits found.")
+                result = False
+            else:
+                return False
+        parent_clade_stack = [root_subsplit_clade]
+        visited_parent_clades = set()
+        while parent_clade_stack:
+            parent_clade = parent_clade_stack.pop()
+            if len(parent_clade.clade) < 2:
+                continue
+            if parent_clade in visited_parent_clades:
+                continue
+            visited_parent_clades.add(parent_clade)
+            mini_support = self.data.get(parent_clade, set())
+            if not mini_support:
+                if verbose:
+                    print(f"Not locally complete: {mini_support}")
+                    result = False
+                else:
+                    return False
+            for subsplit in mini_support:
+                for child in subsplit.nontrivial_children():
+                    parent_clade_stack.append(SubsplitClade(subsplit, child))
+        return result
+
+    # Keep an eye on if this does what other functions need.
+    def valid_parent(self, parent):
+        if isinstance(parent, SubsplitClade):
+            return parent in self.data
+        if isinstance(parent, Subsplit):
+            return all(SubsplitClade(parent, child) in self.data for child in parent.nontrivial_children())
+        return False
+
+    # TODO: Bookmark
+    def restrict(self, taxon_set):
+        result = PCSSSupport()
+        for parent in self.data:
+            result.update(pcss.restrict(taxon_set) for pcss in self[parent].to_pcss_set())
+        return result
+
+    def to_set(self):
+        result = set()
+        for parent_clade in self.data:
+            result.update(PCSS(parent_clade, child) for child in self.data[parent_clade])
+        return result
+
+    def to_string_dict(self):
+        return {str(parent_clade): set(map(str, self.data[parent_clade])) for parent_clade in self.data}
+
+    def to_string_set(self):
+        return set(map(str, self.to_set()))
+
+    def random_tree(self):
+        if not self.is_complete():
+            raise ValueError("PCSSSupport not complete, no tree possible.")
+        root_subsplit_clade = self.root_subsplit_clade()
+        tree = MyTree()
+        parent_clade_stack = [(tree.tree, root_subsplit_clade)]
+        while parent_clade_stack:
+            node, parent_clade = parent_clade_stack.pop()
+            possible_subsplits = [subsplit for subsplit in self.data[parent_clade]
+                                  if not subsplit.is_trivial()]
+            assert possible_subsplits
+            subsplit = random.choice(possible_subsplits)
+            node.name = str(subsplit)
+            left = subsplit.clade1
+            right = subsplit.clade2
+            assert len(left) > 0 and len(right) > 0
+            if len(left) > 1:
+                left_node = node.add_child()
+                parent_clade_stack.append((left_node, SubsplitClade(subsplit, left)))
+            else:
+                node.add_child(name=str(left))
+            if len(right) > 1:
+                right_node = node.add_child()
+                parent_clade_stack.append((right_node, SubsplitClade(subsplit, right)))
+            else:
+                node.add_child(name=str(right))
+        return tree
+
+    # Not bothering with at the moment
+    # def all_strictly_complete_supports(self, verbose=False):
+    #     # if not self.is_complete():
+    #     #     print("Error: PCSSSupport not complete, no tree possible.")
+    #     #     return
+    #     root_clade = self.root_clade()
+    #     support_list = []
+    #     big_stack = [(PCSSSupport(), [(Subsplit(root_clade), root_clade)])]
+    #     while big_stack:
+    #         current_support, parent_stack = big_stack.pop()
+    #         if verbose:
+    #             print(f"Current subsplit set: {current_support}")
+    #             print(f"Current parent stack: {parent_stack}")
+    #         possibilities = []
+    #         for parent, clade in parent_stack:
+    #             if verbose:
+    #                 print(f"Examining parent: {parent}")
+    #                 print(f"Examining clade: {clade}")
+    #             possibilities.append([PCSS(parent, subsplit) for subsplit in self[parent][clade] if not subsplit.is_trivial()])
+    #         if verbose:
+    #             print(f"Current possibilities: {possibilities}")
+    #         for new_pcsss in product(*possibilities):
+    #             if verbose:
+    #                 print(f"Examining possibility: {new_pcsss}")
+    #             new_support = PCSSSupport(current_support)
+    #             new_parent_stack = []
+    #             for pcss in new_pcsss:
+    #                 new_support.add(pcss)
+    #                 for child_clade in pcss.child.nontrivial_children():
+    #                     new_parent_stack.append((pcss.child, child_clade))
+    #                     if verbose:
+    #                         print(f"Pushing parent: {pcss.child}")
+    #                         print(f"Pushing clade: {child_clade}")
+    #             if new_parent_stack:
+    #                 big_stack.append((new_support, new_parent_stack))
+    #                 if verbose:
+    #                     print(f"Pushing subsplit set: {new_support}")
+    #             else:
+    #                 if new_support.is_complete():
+    #                     if verbose:
+    #                         print(f"Sending to output: {new_support}")
+    #                     support_list.append(new_support)
+    #                 else:
+    #                     if verbose:
+    #                         print(f"Incomplete support, NOT sending to output: {new_support}")
+    #     return support_list
+    #
+    # def all_trees(self):
+    #     strict_supports = self.all_strictly_complete_supports()
+    #     return [support.random_tree() for support in strict_supports]
+
+    # TODO: Bookmark
+    def mutualize(self, other):
+        if not isinstance(other, PCSSSupport):
+            raise TypeError("Argument 'other' not PCSSSupport.")
+        result = PCSSSupport()
+        root_clade1 = self.root_clade()
+        root_clade2 = other.root_clade()
+        big_clade = root_clade1 | root_clade2
+        big_root_parent_clade = SubsplitClade(Subsplit(big_clade), Clade(big_clade))
+        parent_clade_stack = [(big_root_parent_clade, Subsplit(root_clade1), Subsplit(root_clade2))]
+        while parent_clade_stack:
+            parent_clade, restricted_parent1, restricted_parent2 = parent_clade_stack.pop()
+            # parent = parent_clade.subsplit
+            clade = parent_clade.clade
+            restricted_clade1 = clade & root_clade1
+            restricted_clade2 = clade & root_clade2
+            restricted_parent_clade1 = SubsplitClade(restricted_parent1, restricted_clade1)
+            restricted_parent_clade2 = SubsplitClade(restricted_parent2, restricted_clade2)
+            candidate_subsplits1 = self.get(restricted_parent_clade1, set()) | {Subsplit(restricted_clade1)}
+            candidate_subsplits2 = other.get(restricted_parent_clade2, set()) | {Subsplit(restricted_clade2)}
+            candidate_big_subsplits = chain.from_iterable(
+                (big_subsplit for big_subsplit in subsplit1.cross(subsplit2) if big_subsplit.is_strictly_valid())
+                for subsplit1, subsplit2 in product(candidate_subsplits1, candidate_subsplits2)
+            )
+            for big_subsplit in candidate_big_subsplits:
+                result.add(PCSS(parent_clade, big_subsplit))
+                new_restricted_parent1 = big_subsplit.restrict(root_clade1)
+                if new_restricted_parent1.is_trivial() and not self.valid_parent(new_restricted_parent1):
+                    new_restricted_parent1 = restricted_parent1
+                new_restricted_parent2 = big_subsplit.restrict(root_clade2)
+                if new_restricted_parent2.is_trivial() and not other.valid_parent(new_restricted_parent2):
+                    new_restricted_parent2 = restricted_parent2
+                for child_clade in big_subsplit.nontrivial_children():
+                    new_parent_clade = SubsplitClade(big_subsplit, child_clade)
+                    parent_clade_stack.append((new_parent_clade, new_restricted_parent1, new_restricted_parent2))
+        return result
+
+    def add_tree(self, tree):
+        if isinstance(tree, MyTree):
+            root_clade = tree.root_clade()
+        elif isinstance(tree, ete3.Tree):
+            root_clade = Clade(tree.get_leaf_names())
+        else:
+            raise TypeError("Argument 'tree' not ete3.Tree or MyTree.")
+        for node in tree.traverse():
+            pcss = PCSS.from_node(node)
+            if not pcss.child.is_trivial():
+                self.add(pcss)
+
+    def parent_clades(self):
+        yield from iter(self.data.keys())
 
     @staticmethod
     def from_tree(tree):
@@ -2615,19 +2948,19 @@ class CCDSet:
         return result
 
 
-class SCDSet:
+class SCDSet_old:
     def __init__(self, cond_probs=None):
         self.data = dict()
         self.update(cond_probs)
 
     def __copy__(self):
-        result = SCDSet()
+        result = SCDSet_old()
         for parent in self.parents():
             result.data[parent] = self.data[parent].copy()
         return result
 
     def __eq__(self, other):
-        if not isinstance(other, SCDSet):
+        if not isinstance(other, SCDSet_old):
             return False
         if not self.parents() == other.parents():
             return False
@@ -2642,7 +2975,7 @@ class SCDSet:
             join_str = '\n'
         else:
             join_str = ''
-        return join_str.join(("SCDSet(", pretty_repr, ")"))
+        return join_str.join(("SCDSet_old(", pretty_repr, ")"))
 
     def __str__(self):
         strs = [str(parent) + ": " + str(self.get(parent)) for parent in sorted(self.parents())]
@@ -2723,7 +3056,7 @@ class SCDSet:
                 return False
         return True
 
-    # This function is probably less useful in SCDSet,
+    # This function is probably less useful in SCDSet_old,
     # and the implemenation wouldn't be as elegant outside of a
     # function that computes both clade and subsplit unconditional
     # probabilities
@@ -2934,7 +3267,7 @@ class SCDSet:
         return result
 
     def kl_divergence(self, other):
-        if isinstance(other, SCDSet):
+        if isinstance(other, SCDSet_old):
             return self.kl_divergence_scd(other)
         if isinstance(other, TreeDistribution):
             return self.kl_divergence_treedist(other)
@@ -3011,7 +3344,7 @@ class SCDSet:
         taxon_set = Clade(taxon_set)
         root_subsplit = self.root_subsplit()
         restricted_root_subsplit = root_subsplit.restrict(taxon_set)
-        result = SCDSet()
+        result = SCDSet_old()
         s2s_probabilities = self.subsplit_to_subsplit_probabilities()
         for child in s2s_probabilities:
             restricted_child = child.restrict(taxon_set)
@@ -3083,10 +3416,10 @@ class SCDSet:
         for key in arg:
             self.set_log(key, arg[key])
 
-    # TODO: Add PCSSSupport and update this function
+    # TODO: Add PCSSSupport_old and update this function
     def support(self, include_trivial=False):
-        return PCSSSupport(self.iter_pcss(),
-                           include_trivial=include_trivial)
+        return PCSSSupport_old(self.iter_pcss(),
+                               include_trivial=include_trivial)
 
     # TODO: Update
     def taxon_set(self):
@@ -3095,7 +3428,7 @@ class SCDSet:
     # TODO: Update
     def tree_distribution(self, verbose=False):
         if not self.is_complete():
-            raise TypeError("SCDSet not complete, no tree possible.")
+            raise TypeError("SCDSet_old not complete, no tree possible.")
         root_clade = self.root_clade()
         root_subsplit = self.root_subsplit()
         tree = MyTree()
@@ -3180,7 +3513,7 @@ class SCDSet:
 
     @staticmethod
     def random(taxon_set, concentration=1.0, cutoff=0.0):
-        result = SCDSet()
+        result = SCDSet_old()
         root_subsplit = Subsplit(taxon_set)
         parent_stack = [root_subsplit]
         visited_parents = set()
@@ -3197,7 +3530,7 @@ class SCDSet:
 
     @staticmethod
     def random_with_sparsity(taxon_set, sparsity, concentration=1.0):
-        result = SCDSet()
+        result = SCDSet_old()
         root_subsplit = Subsplit(taxon_set)
         parent_stack = [root_subsplit]
         visited_parents = set()
@@ -3213,7 +3546,775 @@ class SCDSet:
         return result
 
     @staticmethod
-    def random_from_support(support: PCSSSupport, concentration: float = 1.0):
+    def random_from_support(support: PCSSSupport_old, concentration: float = 1.0):
+        result = SCDSet_old()
+        root_subsplit = support.root_subsplit()
+        parent_stack = [root_subsplit]
+        visited_parents = set()
+        while parent_stack:
+            parent = parent_stack.pop()
+            if parent in visited_parents:
+                continue
+            visited_parents.add(parent)
+            mini_support = support[parent]
+            pcmini = PCMiniSet.random(parent, concentration=concentration)
+            result.data[parent] = pcmini
+            for child in pcmini:
+                parent_stack.append(child)
+        return result
+
+    # TODO: Write test
+    @staticmethod
+    def from_tree_distribution(tree_distribution):
+        result = SCDSet_old()
+        for tree, prob in tree_distribution.items():
+            for pcss in tree.traverse_pcsss():
+                result.add(pcss, prob)
+        result.normalize()
+        return result
+
+
+class SCDSet:
+    def __init__(self, cond_probs=None):
+        self.data = dict()
+        self.update(cond_probs)
+
+    def __copy__(self):
+        result = SCDSet()
+        for parent in self.parents():
+            result.data[parent] = self.data[parent].copy()
+        return result
+
+    def __eq__(self, other):
+        if not isinstance(other, SCDSet):
+            return False
+        # if not self.parents() == other.parents():
+        #     return False
+        # for parent in self.parents():
+        #     if not self[parent] == other[parent]:
+        #         return False
+        return self.data == other.data
+
+    def __repr__(self):
+        pretty_repr = pprint.pformat(dict(self.data))
+        if '\n' in pretty_repr:
+            join_str = '\n'
+        else:
+            join_str = ''
+        return join_str.join(("SCDSet(", pretty_repr, ")"))
+
+    def __str__(self):
+        strs = [str(parent) + ": " + str(self.get(parent)) for parent in sorted(self.parents())]
+        return "\n".join(strs)
+
+    def __getitem__(self, item):
+        if isinstance(item, Subsplit):
+            parent_clade1 = SubsplitClade(item, item.clade1)
+            parent_clade2 = SubsplitClade(item, item.clade2)
+            return self.data[parent_clade1], self.data[parent_clade2]
+        if isinstance(item, SubsplitClade):
+            return self.data[item]
+        if isinstance(item, PCSS):
+            parent_clade = item.parent_clade()
+            child = item.child
+            return self.data[parent_clade][child]
+
+    def __len__(self):
+        result = 0
+        for parent in self.parents():
+            result += len(self[parent])
+        return result
+
+    def add(self, pcss, value, log=False):
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        if log:
+            self.add_log(pcss, value)
+        else:
+            self.add_lin(pcss, value)
+
+    def add_lin(self, pcss, prob):
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        if prob == 0.0:
+            return
+        parent = pcss.parent_clade()
+        child = pcss.child
+        if parent not in self.data:
+            self.data[parent] = ProbabilityDistribution()
+        self.data[parent].add_lin(child, prob)
+
+    def add_log(self, pcss, log_prob):
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        if log_prob == 0.0:
+            return
+        parent = pcss.parent_clade()
+        child = pcss.child
+        if parent not in self.data:
+            # self.data[clade] = ProbabilityDistribution()
+            return
+        self.data[parent].add_log(child, log_prob)
+
+    def add_many(self, arg, log=False, scalar=1.0):
+        if log:
+            self.add_many_log(arg, scalar)
+        else:
+            self.add_many_lin(arg, scalar)
+
+    def add_many_lin(self, arg, scalar=1.0):
+        for key in arg:
+            self.add_lin(key, arg[key]*scalar)
+
+    def add_many_log(self, arg, scalar=1.0):
+        for key in arg:
+            self.add_log(key, arg[key]*scalar)
+
+    def bad_distributions(self):
+        result = set()
+        for parent in self.data:
+            if not self.data[parent].check():
+                result.add(parent)
+        return result
+
+    def check(self):
+        return self.check_distributions() and self.support().is_complete()
+
+    def check_distributions(self):
+        for parent in self.data:
+            if not self.data[parent].check():
+                return False
+        return True
+
+    # This function is probably less useful in SCDSet,
+    # and the implementation wouldn't be as elegant outside of a
+    # function that computes both clade and subsplit unconditional
+    # probabilities
+    # def clade_probabilities(self):
+    #     parents = sorted(self.parents(), key=lambda W: (-len(W), W))
+    #     result = dict()
+    #     result[self.root_clade()] = 1.0
+    #     for clade in parents:
+    #         for subsplit in self[clade]:
+    #             uncond_prob = result[clade] * self[subsplit]
+    #             for child_clade in subsplit.nontrivial_children():
+    #                 if child_clade not in result:
+    #                     result[child_clade] = 0.0
+    #                 result[child_clade] += uncond_prob
+    #     return result
+
+    # TODO: Parallel to clade_to_clade_probabilities = parent_to_parent_probabilities
+    #  or subsplit_to_subsplit_probabilities
+
+    def copy(self):
+        return self.__copy__()
+
+    def degrees_of_freedom(self):
+        result = 0
+        for parent in self.parents():
+            result += self[parent].degrees_of_freedom()
+        return result
+
+    def get(self, item):
+        if isinstance(item, Subsplit):
+            parent_clade1 = SubsplitClade(item, item.clade1)
+            parent_clade2 = SubsplitClade(item, item.clade2)
+            return self.data.get(parent_clade1, ProbabilityDistribution()), \
+                self.data.get(parent_clade2, ProbabilityDistribution())
+        if isinstance(item, SubsplitClade):
+            return self.data.get(item, ProbabilityDistribution())
+        if isinstance(item, PCSS):
+            parent = item.parent_clade()
+            child = item.child
+            return self.data.get(parent, ProbabilityDistribution()).get(child)
+
+    def get_log(self, item):
+        if not isinstance(item, PCSS):
+            raise TypeError("Argument 'item' not of class PCSS.")
+        parent_clade = item.parent_clade()
+        return self[parent_clade].get_log(item.child)
+
+    # TODO: implement inline so as not to have to copy everything to a Support object
+    def is_complete(self):
+        return self.support().is_complete()
+
+    # TODO: Compare usefulness to parents()
+    def iter_parents(self):
+        yield from self.parents()
+
+    # TODO: check for usefulness
+    def iter_clades(self):
+        clade_stack = [self.root_clade()]
+        visited_clades = set()
+        while clade_stack:
+            clade = clade_stack.pop()
+            if clade in visited_clades:
+                continue
+            visited_clades.add(clade)
+            yield clade
+
+    def iter_subsplits(self, include_root: bool = False):
+        visited_subsplits = set()
+        if include_root:
+            root_subsplit = self.root_subsplit()
+            visited_subsplits.add(root_subsplit)
+            yield root_subsplit
+        for parent_clade in self.data:
+            for subsplit in self.data[parent_clade]:
+                if subsplit in visited_subsplits:
+                    continue
+                visited_subsplits.add(subsplit)
+                yield subsplit
+
+    # TODO: Update
+    def iter_probabilities(self):
+        clade_stack = [(self.root_clade(), 1.0)]
+        while clade_stack:
+            clade, clade_prob = clade_stack.pop()
+            cond_dist = self[clade]
+            for subsplit in cond_dist:
+                cond_prob = self[subsplit]
+                joint_prob = clade_prob * cond_prob
+                yield (subsplit, cond_prob, joint_prob)
+                for child in subsplit.nontrivial_children():
+                    clade_stack.append((child, joint_prob))
+
+    def iter_pcss(self):
+        for parent_clade in self.iter_parents():
+            for child in self.data[parent_clade]:
+                yield PCSS(parent_clade.subsplit, child)
+
+    def prob_lin(self, tree):
+        return self.likelihood(tree)
+
+    def prob_log(self, tree):
+        return self.log_likelihood(tree)
+
+    def probabilities(self):
+        parents = sorted(self.parents(), key=lambda par: (-len(par.subsplit), par.subsplit.clade(), -len(par.clade)))
+        subsplit_probs = dict()
+        pcss_probs = dict()
+        subsplit_probs[self.root_subsplit()] = 1.0
+        for parent in parents:
+            for child in self[parent]:
+                pcss = PCSS(parent, child)
+                uncond_prob = subsplit_probs[parent.subsplit] * self.get(pcss)
+                if pcss not in pcss_probs:
+                    pcss_probs[pcss] = 0.0
+                pcss_probs[pcss] += uncond_prob
+                if child not in subsplit_probs:
+                    subsplit_probs[child] = 0.0
+                subsplit_probs[child] += uncond_prob
+        return subsplit_probs, pcss_probs
+
+    def pcss_probabilities(self):
+        parents = sorted(self.parents(), key=lambda par: (-len(par.subsplit), par.subsplit.clade(), -len(par.clade)))
+        parent_probs = dict()
+        result = dict()
+        parent_probs[self.root_subsplit()] = 1.0
+        for parent in parents:
+            for child in self[parent]:
+                pcss = PCSS(parent, child)
+                uncond_prob = parent_probs[parent.subsplit] * self.get(pcss)
+                if pcss not in result:
+                    result[pcss] = 0.0
+                result[pcss] += uncond_prob
+                if child not in parent_probs:
+                    parent_probs[child] = 0.0
+                parent_probs[child] += uncond_prob
+        return result
+
+    # TODO: Update
+    def iter_unconditional_probabilities(self):
+        clade_stack = [(self.root_clade(), 1.0)]
+        while clade_stack:
+            clade, clade_prob = clade_stack.pop()
+            cond_dist = self[clade]
+            for subsplit in cond_dist:
+                cond_prob = self[subsplit]
+                joint_prob = clade_prob * cond_prob
+                yield (subsplit, joint_prob)
+                for child in subsplit.nontrivial_children():
+                    clade_stack.append((child, joint_prob))
+
+    def clade_probabilities(self):
+        subsplit_probs = self.subsplit_probabilities()
+        result = dict()
+        for subsplit, prob in subsplit_probs.items():
+            for child_clade in subsplit.nontrivial_children():
+                if child_clade not in result:
+                    result[child_clade] = 0.0
+                result[child_clade] += prob
+        return result
+
+    def subsplit_probabilities(self):
+        parent_clades = sorted(self.parents(), key=lambda par: (-len(par.subsplit), par.subsplit.clade(), -len(par.clade)))
+        result = dict()
+        result[self.root_subsplit()] = 1.0
+        for parent_clade in parent_clades:
+            for child in self[parent_clade]:
+                uncond_prob = result[parent_clade.subsplit] * self.get(PCSS(parent_clade, child))
+                if child not in result:
+                    result[child] = 0.0
+                result[child] += uncond_prob
+        return result
+
+    # Not yet updated
+    def subsplit_to_subsplit_probabilities(self):
+        parents = sorted(self.parents(), key=lambda par: (-len(par.subsplit), par.subsplit.clade(), -len(par.clade)))
+        result = {self.root_subsplit(): dict()}
+        for parent in parents:
+            if parent not in result:
+                result[parent] = dict()
+            result[parent][parent] = 1.0
+            curr_paths = result[parent]
+            for child in self[parent]:
+                pcss = PCSS(parent, child)
+                cond_prob = self[pcss]
+                for parent2 in curr_paths.keys():
+                    path_prob = curr_paths[parent2] * cond_prob
+                    if child not in result:
+                        result[child] = dict()
+                    if parent2 not in result[child]:
+                        result[child][parent2] = 0.0
+                    result[child][parent2] += path_prob
+        return result
+
+    def transit_probabilities(self):
+        parent_clades = sorted(self.parents(), key=lambda par: (-len(par.subsplit), par.subsplit.clade(), -len(par.clade)))
+        result = {self.root_subsplit(): {self.root_subsplit(): 1.0}}
+        for parent_clade in parent_clades:
+            parent = parent_clade.subsplit
+            # clade = parent_clade.clade
+            # if parent not in result:
+            #     result[parent] = dict()
+            # result[parent][parent] = 1.0
+            curr_paths = result[parent].copy()
+            curr_paths[parent_clade] = 1.0
+            for child in self[parent_clade]:
+                pcss = PCSS(parent, child)
+                cond_prob = self[pcss]
+                if child not in result:
+                    result[child] = {child: 1.0}
+                # result[child][parent_clade] = cond_prob
+                for ancestor in curr_paths:
+                    path_prob = curr_paths[ancestor] * cond_prob
+                    # if child not in result:
+                    #     result[child] = dict()
+                    if ancestor not in result[child]:
+                        result[child][ancestor] = 0.0
+                    result[child][ancestor] += path_prob
+        return result
+
+    # Note: probably inefficient, traversing the same subsplits multiple times
+    def iter_parent_probabilities(self):
+        clade_stack = [(self.root_clade(), 1.0)]
+        while clade_stack:
+            clade, clade_prob = clade_stack.pop()
+            cond_dist = self[clade]
+            for subsplit in cond_dist:
+                cond_prob = self[subsplit]
+                joint_prob = clade_prob * cond_prob
+                yield (subsplit, joint_prob)
+                for child in subsplit.nontrivial_children():
+                    clade_stack.append((child, joint_prob))
+
+    def kl_divergence_scd(self, other):
+        result = 0.0
+        pcss_probs = self.pcss_probabilities()
+        for pcss in pcss_probs:
+            result += -pcss_probs[pcss] * (other.get_log(pcss) - self.get_log(pcss))
+        return result
+
+    def kl_divergence_scd_verbose(self, other):
+        result = {}
+        pcss_probs = self.pcss_probabilities()
+        for pcss in pcss_probs:
+            if pcss.parent not in result:
+                result[pcss.parent] = 0.0
+            result[pcss.parent] += -pcss_probs[pcss] * (other.get_log(pcss) - self.get_log(pcss))
+        return result
+
+    def kl_divergence_treedist(self, other):
+        result = 0.0
+        for tree in other:
+            log_q = other.log_likelihood(tree)
+            log_p = self.log_likelihood(tree)
+            result += -math.exp(log_p) * (log_q - log_p)
+        return result
+
+    def kl_divergence(self, other):
+        if isinstance(other, SCDSet):
+            return self.kl_divergence_scd(other)
+        if isinstance(other, TreeDistribution):
+            return self.kl_divergence_treedist(other)
+        raise TypeError("Argument 'other' not a SCDSet or TreeDistribution")
+
+    def log_likelihood(self, tree, strategy='levelorder'):
+        result = 0.0
+        for pcss in tree.traverse_pcsss(strategy):
+            cond_prob = self[pcss]
+            if cond_prob > 0.0:
+                result += math.log(cond_prob)
+            else:
+                result += -math.inf
+        return result
+
+    def likelihood(self, tree, strategy='levelorder'):
+        return math.exp(self.log_likelihood(tree, strategy))
+
+    # TODO: parallel to max_clade_tree
+    def max_clade_tree_draft(self):
+        clade_probs = self.clade_probabilities()
+        clades = sorted(clade_probs.keys(), key=lambda W: (len(W), W))
+        best_subtree_and_prob = {}
+        for clade in clades:
+            best_subsplit = None
+            best_subtree_prob = 0.0
+            clade_score = clade_probs[clade]
+            for subsplit in self[clade]:
+                cond_prob = clade_score
+                subtree_prob = cond_prob
+                for child_clade in subsplit.nontrivial_children():
+                    subtree_prob *= best_subtree_and_prob[child_clade][1]
+                if subtree_prob > best_subtree_prob:
+                    best_subsplit = subsplit
+                    best_subtree_prob = subtree_prob
+            best_subtree = SubsplitSupport(best_subsplit)
+            for child_clade in best_subsplit.nontrivial_children():
+                best_subtree.update(best_subtree_and_prob[child_clade][0])
+            best_subtree_and_prob[clade] = (best_subtree, best_subtree_prob)
+        best_tree_support, best_prob = best_subtree_and_prob[self.root_clade()]
+        return best_tree_support.random_tree(), best_prob
+
+    def max_clade_tree(self):
+        parent_clades = sorted(self.parents(), key=lambda p_c: (len(p_c.clade), p_c.clade))
+        clade_probs = self.clade_probabilities()
+        best_subtree_and_score = {}
+        for parent_clade in parent_clades:
+            best_subsplit = None
+            best_subtree_score = 0.0
+            clade_score = clade_probs[parent_clade.clade]
+            for subsplit in self[parent_clade]:
+                subtree_score = clade_score
+                for child_clade in subsplit.nontrivial_children():
+                    child_subsplit_clade = SubsplitClade(subsplit, child_clade)
+                    subtree_score *= best_subtree_and_score[child_subsplit_clade][1]
+                if subtree_score > best_subtree_score:
+                    best_subsplit = subsplit
+                    best_subtree_score = subtree_score
+            best_pcss = PCSS(parent_clade, best_subsplit)
+            best_subtree = PCSSSupport(best_pcss)
+            for child_clade in best_subsplit.nontrivial_children():
+                child_subsplit_clade = SubsplitClade(best_subsplit, child_clade)
+                best_subtree.update(best_subtree_and_score[child_subsplit_clade][0])
+            best_subtree_and_score[parent_clade] = (best_subtree, best_subtree_score)
+        best_tree_support, best_score = best_subtree_and_score[self.root_subsplit_clade()]
+        return best_tree_support.random_tree(), best_score
+
+    def max_prob_tree(self):
+        parent_clades = sorted(self.parents(), key=lambda p_c: (len(p_c.clade), p_c.clade))
+        best_subtree_and_prob = {}
+        for parent_clade in parent_clades:
+            best_subsplit = None
+            best_subtree_prob = 0.0
+            for subsplit, cond_prob in self[parent_clade].items():
+                # cond_prob = self[subsplit]
+                subtree_prob = cond_prob
+                for child_clade in subsplit.nontrivial_children():
+                    child_subsplit_clade = SubsplitClade(subsplit, child_clade)
+                    subtree_prob *= best_subtree_and_prob[child_subsplit_clade][1]
+                if subtree_prob > best_subtree_prob:
+                    best_subsplit = subsplit
+                    best_subtree_prob = subtree_prob
+            best_pcss = PCSS(parent_clade, best_subsplit)
+            best_subtree = PCSSSupport(best_pcss)
+            for child_clade in best_subsplit.nontrivial_children():
+                child_subsplit_clade = SubsplitClade(best_subsplit, child_clade)
+                best_subtree.update(best_subtree_and_prob[child_subsplit_clade][0])
+            best_subtree_and_prob[parent_clade] = (best_subtree, best_subtree_prob)
+        best_tree_support, best_prob = best_subtree_and_prob[self.root_subsplit_clade()]
+        return best_tree_support.random_tree(), best_prob
+
+    def normalize(self, parent=None):
+        if parent is None:
+            for parent in self.data:
+                self.data[parent].normalize()
+        elif isinstance(parent, SubsplitClade):
+            self.data[parent].normalize()
+        elif isinstance(parent, Subsplit):
+            for child_clade in parent.nontrivial_children():
+                parent_clade = SubsplitClade(parent, child_clade)
+                self.data[parent_clade].normalize()
+        elif isinstance(parent, Clade) and parent == self.root_clade():
+            self.data[self.root_subsplit_clade()].normalize()
+        else:
+            raise TypeError("Argument 'parent' not None, SubsplitClade, Subsplit, or root Clade")
+
+    def parents(self):
+        return self.data.keys()
+
+    # TODO: parallel to random_tree
+    def random_tree(self):
+        if not self.is_complete():
+            raise ValueError("CCDSet not complete, no tree possible.")
+        root_clade = self.root_clade()
+        assert len(root_clade) > 1
+        root_subsplit = self.root_subsplit()
+        tree = MyTree()
+
+        parent_stack = [(tree.tree, root_clade, root_subsplit)]  # MyTree alteration
+        while parent_stack:
+            node, clade, parent = parent_stack.pop()
+            subsplit = self.data[parent][clade].sample()
+            node.name = str(subsplit)
+            # assert len(subsplit) == 2
+            left = subsplit.clade1
+            right = subsplit.clade2
+            assert len(left) > 0 and len(right) > 0
+            if len(left) > 1:
+                left_node = node.add_child()
+                parent_stack.append((left_node, left, subsplit))
+            else:
+                node.add_child(name=str(left))
+            if len(right) > 1:
+                right_node = node.add_child()
+                parent_stack.append((right_node, right, subsplit))
+            else:
+                node.add_child(name=str(right))
+        return tree
+
+    # TODO: Update
+    def remove(self, parent, child):
+        if not isinstance(parent, Subsplit):
+            raise TypeError("Argument 'parent' not class Subsplit")
+        if not isinstance(child, Subsplit):
+            raise TypeError("Argument 'child' not class Subsplit")
+        self.data[parent].remove(child)
+
+    def restrict(self, taxon_set, verbose=False):
+        taxon_set = Clade(taxon_set)
+        root_subsplit = self.root_subsplit()
+        # restricted_root_subsplit = root_subsplit.restrict(taxon_set)
+        root_subsplit_clade = self.root_subsplit_clade()
+        result = SCDSet()
+        t_probabilities = self.transit_probabilities()
+        for child in t_probabilities:
+            restricted_child = child.restrict(taxon_set)
+            if verbose:
+                print(f"Considering child {child} with restriction {restricted_child}.")
+            if restricted_child.is_trivial():
+                if verbose:
+                    print(f"Restricted child {restricted_child} is trivial, skipping.")
+                continue
+            for ancestor in t_probabilities[child]:
+                if not isinstance(ancestor, SubsplitClade):
+                    continue
+                restricted_ancestor = ancestor.restrict(taxon_set)
+                if verbose:
+                    print(f"Considering ancestor {ancestor} with restriction {restricted_ancestor}.")
+                if (restricted_ancestor.subsplit.is_trivial() and ancestor != root_subsplit_clade) or \
+                        not restricted_ancestor.subsplit.valid_child(restricted_child):  # think about making this w.r.t. clade member rather than subsplit member
+                    if verbose:
+                        print(f"Restricted ancestor {restricted_ancestor} is trivial and not root or incompatible with {restricted_child}, skipping.")
+                    continue
+                prob1 = t_probabilities[ancestor.subsplit][root_subsplit]
+                prob2 = t_probabilities[child][ancestor]
+                pcss_prob = prob1 * prob2
+                result.add(PCSS(restricted_ancestor, restricted_child), pcss_prob)
+        result.normalize()
+        return result
+
+    def root_clade(self):
+        return Clade(self.taxon_set())
+
+    def root_subsplit(self):
+        return Subsplit(self.root_clade())
+
+    def root_subsplit_clade(self):
+        root_clade = self.root_clade()
+        return SubsplitClade(Subsplit(root_clade), Clade(root_clade))
+
+    def set(self, pcss, value, log=False):
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        if log:
+            self.set_log(pcss, value)
+        else:
+            self.set_lin(pcss, value)
+
+    def set_lin(self, pcss, prob):
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        parent_clade = pcss.parent_clade()
+        if prob > 0.0 and parent_clade not in self.data:
+            self.data[parent_clade] = ProbabilityDistribution()
+        self.data[parent_clade].set_lin(pcss.child, prob)
+
+    def set_log(self, pcss, log_prob):
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        parent_clade = pcss.parent_clade()
+        if log_prob > -math.inf and parent_clade not in self.data:
+            self.data[parent_clade] = ProbabilityDistribution()
+        self.data[parent_clade].set_log(pcss.child, log_prob)
+
+    def set_many(self, arg, log=False):
+        if log:
+            self.set_many_log(arg)
+        else:
+            self.set_many_lin(arg)
+
+    def set_many_lin(self, arg):
+        if arg is None:
+            return
+        for key in arg:
+            self.set_lin(key, arg[key])
+
+    def set_many_log(self, arg):
+        if arg is None:
+            return
+        for key in arg:
+            self.set_log(key, arg[key])
+
+    # TODO: Add PCSSSupport_old and update this function
+    def support(self, include_trivial=False):
+        return PCSSSupport_old(self.iter_pcss(),
+                               include_trivial=include_trivial)
+
+    def taxon_set(self):
+        return set().union(*(parent.subsplit.clade() for parent in self.data))
+
+    def tree_distribution(self, verbose=False):
+        # if not self.is_complete():
+        #     raise TypeError("SCDSet not complete, no tree possible.")
+        root_clade = self.root_clade()
+        root_subsplit = self.root_subsplit()
+        tree = MyTree()
+        tree.tree.clade = root_clade
+        tree.tree.parent_subsplit = root_subsplit
+        result = TreeDistribution()
+        big_stack = [(tree.tree, 0.0)]
+        while big_stack:
+            current_tree, log_prob_so_far = big_stack.pop()
+            if verbose:
+                print(f"Current tree: {current_tree}")
+                print(f"Current log-probability: {log_prob_so_far}")
+            possibilities = []
+            state_stack = [(leaf.clade, leaf.parent_subsplit) for leaf in current_tree.iter_leaves() if len(leaf.clade) > 1]
+            if not state_stack:
+                result.set_log(MyTree(current_tree), log_prob_so_far)
+                if verbose:
+                    print(f"Sending to output: {current_tree} with log-probability {log_prob_so_far}")
+                continue
+            for clade, parent_subsplit in state_stack:
+                parent_clade = SubsplitClade(parent_subsplit, clade)
+                if verbose:
+                    print(f"Examining clade: {clade} from parent {parent_subsplit}")
+                possibilities.append(subsplit for subsplit, prob in self.data[parent_clade].items()
+                                     if prob > 0.0 and not subsplit.is_trivial())
+            for new_subsplits in product(*possibilities):
+                if verbose:
+                    print(f"Examining possibility: {new_subsplits}")
+                new_tree = current_tree.copy()
+                new_log_prob = log_prob_so_far
+                for subsplit in new_subsplits:
+                    node = next(new_tree.iter_search_nodes(clade=subsplit.clade()))
+                    node.subsplit = subsplit
+                    node.name = str(subsplit)
+                    parent = node.parent_subsplit
+                    pcss = PCSS(parent, subsplit)
+                    new_log_prob += self.get_log(pcss)
+                    for child_clade in subsplit.children():
+                        child_node = node.add_child(name=str(child_clade))
+                        child_node.clade = child_clade
+                        child_node.parent_subsplit = subsplit
+                        if verbose:
+                            print(f"Pushing clade: {child_clade} with parent {subsplit}")
+                big_stack.append((new_tree, new_log_prob))
+                if verbose:
+                    print(f"Pushing tree: {new_tree} with probability {math.exp(new_log_prob)}")
+        result.normalize()
+        return result
+
+    # TODO: Update
+    def unconditional_probabilities(self):
+        result = defaultdict(float)
+        clade_stack = [(self.root_clade(), 1.0)]
+        while clade_stack:
+            clade, clade_prob = clade_stack.pop()
+            cond_dist = self[clade]
+            for subsplit in cond_dist:
+                cond_prob = self[subsplit]
+                joint_prob = clade_prob * cond_prob
+                result[subsplit] += joint_prob
+                for child in subsplit.nontrivial_children():
+                    clade_stack.append((child, joint_prob))
+        return result
+
+    # TODO: Parallels to derivative functions
+
+    # TODO: Update
+    def update(self, arg, log=False):
+        self.set_many(arg, log)
+
+    def update_old(self, parent, cond_probs):
+        if cond_probs is None:
+            return
+        if not isinstance(parent, Subsplit):
+            raise TypeError("Argument 'parent' not class Subsplit")
+        if not isinstance(cond_probs, collections.abc.Mapping):
+            raise TypeError("Argument 'cond_probs' not a Mapping")
+        for subsplit in cond_probs:
+            if not isinstance(subsplit, Subsplit):
+                print("Warning: Non-Subsplit found in cond_probs, skipping")
+                continue
+            self.data[parent][subsplit] = cond_probs[subsplit]
+
+    @staticmethod
+    def random(taxon_set, concentration=1.0, cutoff=0.0):
+        result = SCDSet()
+        root_clade = Clade(taxon_set)
+        root_subsplit = Subsplit(root_clade)
+        root_subsplit_clade = SubsplitClade(root_subsplit, root_clade)
+        parent_clade_stack = [root_subsplit_clade]
+        visited_parent_clades = set()
+        while parent_clade_stack:
+            parent_clade = parent_clade_stack.pop()
+            if parent_clade in visited_parent_clades:
+                continue
+            visited_parent_clades.add(parent_clade)
+            possible_subsplits = list(Subsplit.compatible_subsplits(parent_clade.clade))
+            dist = ProbabilityDistribution.random(possible_subsplits, concentration=concentration, cutoff=cutoff)
+            result.data[parent_clade] = dist
+            for subsplit in dist:
+                for child in subsplit.nontrivial_children():
+                    parent_clade_stack.append(SubsplitClade(subsplit, child))
+        return result
+
+    @staticmethod
+    def random_with_sparsity(taxon_set, sparsity, concentration=1.0):
+        result = SCDSet()
+        root_clade = Clade(taxon_set)
+        root_subsplit = Subsplit(root_clade)
+        root_subsplit_clade = SubsplitClade(root_subsplit, root_clade)
+        parent_clade_stack = [root_subsplit_clade]
+        visited_parent_clades = set()
+        while parent_clade_stack:
+            parent_clade = parent_clade_stack.pop()
+            if parent_clade in visited_parent_clades:
+                continue
+            visited_parent_clades.add(parent_clade)
+            possible_subsplits = list(Subsplit.compatible_subsplits(parent_clade.clade))
+            dist = ProbabilityDistribution.random_with_sparsity(possible_subsplits, sparsity=sparsity, concentration=concentration)
+            result.data[parent_clade] = dist
+            for subsplit in dist:
+                for child in subsplit.nontrivial_children():
+                    parent_clade_stack.append(SubsplitClade(subsplit, child))
+        return result
+
+    @staticmethod
+    def random_from_support(support: PCSSSupport_old, concentration: float = 1.0):
         result = SCDSet()
         root_subsplit = support.root_subsplit()
         parent_stack = [root_subsplit]

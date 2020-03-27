@@ -365,7 +365,7 @@ ss2 = SubsplitSupport.from_trees(projection2)
 ss = ss1.mutualize(ss2)
 print(ss)
 
-# PCSSSupport test
+# PCSSSupport_old test
 
 X = "ABCD"
 all_trees = generate_rooted(X)
@@ -391,17 +391,17 @@ print(ss2)
 ss = ss1.mutualize(ss2)
 print(ss)
 
-ps = PCSSSupport.from_tree(big_tree)
+ps = PCSSSupport_old.from_tree(big_tree)
 print(ps)
 ps.is_complete()
 tree = ps.random_tree()
 print(tree)
 
-ps1 = PCSSSupport.from_tree(tree1)
+ps1 = PCSSSupport_old.from_tree(tree1)
 print(ps1)
 ps1.is_complete()
 
-ps2 = PCSSSupport.from_tree(tree2)
+ps2 = PCSSSupport_old.from_tree(tree2)
 print(ps2)
 ps1.is_complete()
 
@@ -411,7 +411,7 @@ pshat.is_complete()
 
 
 trees = ss.all_trees()
-ps = PCSSSupport.from_trees(trees)
+ps = PCSSSupport_old.from_trees(trees)
 print(ps)
 trees2 = ps.all_trees()
 for tree in trees: print(tree)
@@ -442,11 +442,11 @@ print(example_tree1)
 example_tree2 = MyTree(result[result_keys[i]].proj2)
 print(example_tree2)
 
-ps = PCSSSupport.from_tree(example_tree)
+ps = PCSSSupport_old.from_tree(example_tree)
 print(ps)
-ps1 = PCSSSupport.from_tree(example_tree1)
+ps1 = PCSSSupport_old.from_tree(example_tree1)
 print(ps1)
-ps2 = PCSSSupport.from_tree(example_tree2)
+ps2 = PCSSSupport_old.from_tree(example_tree2)
 print(ps2)
 pshat = ps1.mutualize(ps2)
 print(pshat)
@@ -486,8 +486,8 @@ sshat = ss1.mutualize(ss2)
 sshat_trees = set(sshat.all_trees())
 trees == sshat_trees
 trees.issubset(sshat_trees)
-ps1 = PCSSSupport.from_tree(proj1)
-ps2 = PCSSSupport.from_tree(proj2)
+ps1 = PCSSSupport_old.from_tree(proj1)
+ps2 = PCSSSupport_old.from_tree(proj2)
 pshat = ps1.mutualize(ps2)
 pshat_trees = set(pshat.all_trees())
 trees == pshat_trees
@@ -509,8 +509,8 @@ print("PCSS Support Test")
 for i, key in enumerate(result_keys):
     trees = set(result[result_keys[i]].treelist)
     proj1, proj2 = result[result_keys[i]].projections
-    ps1 = PCSSSupport.from_tree(proj1)
-    ps2 = PCSSSupport.from_tree(proj2)
+    ps1 = PCSSSupport_old.from_tree(proj1)
+    ps2 = PCSSSupport_old.from_tree(proj2)
     pshat = ps1.mutualize(ps2)
     pshat_trees = set(pshat.all_trees())
     print(f"Signature {i}: {len(trees)} trees, {len(pshat_trees)} reconstructed trees; same? {trees == pshat_trees}, subset? {trees.issubset(pshat_trees)}")
@@ -523,8 +523,8 @@ for i, key in enumerate(result_keys):
     ss2 = SubsplitSupport.from_tree(proj2)
     sshat = ss1.mutualize(ss2)
     sshat_trees = set(sshat.all_trees())
-    ps1 = PCSSSupport.from_tree(proj1)
-    ps2 = PCSSSupport.from_tree(proj2)
+    ps1 = PCSSSupport_old.from_tree(proj1)
+    ps2 = PCSSSupport_old.from_tree(proj2)
     pshat = ps1.mutualize(ps2)
     pshat_trees = set(pshat.all_trees())
     print(f"Signature {i:>3}: {len(trees):>2} trees, {len(sshat_trees):>2} SS-reconstructed trees, {len(pshat_trees):>2} PC-reconstructed trees; {trees == sshat_trees:>5} {trees == pshat_trees:>5} {trees.issubset(sshat_trees):>5} {trees.issubset(pshat_trees):>5}")
@@ -548,8 +548,8 @@ ss1 = SubsplitSupport.from_trees(proj1s)
 ss2 = SubsplitSupport.from_trees(proj2s)
 sshat = ss1.mutualize(ss2)
 sshat_trees = set(sshat.all_trees())
-ps1 = PCSSSupport.from_trees(proj1s)
-ps2 = PCSSSupport.from_trees(proj2s)
+ps1 = PCSSSupport_old.from_trees(proj1s)
+ps2 = PCSSSupport_old.from_trees(proj2s)
 pshat = ps1.mutualize(ps2)
 pshat_trees = set(pshat.all_trees())
 
@@ -557,7 +557,7 @@ pshat.is_complete(verbose=True)
 pshat.to_string_dict()
 
 SubsplitSupport.from_trees(trees).to_set().issubset(sshat.to_set())
-PCSSSupport.from_trees(trees).to_set().issubset(pshat.to_set())
+PCSSSupport_old.from_trees(trees).to_set().issubset(pshat.to_set())
 set(trees).issubset(sshat_trees)
 set(trees).issubset(pshat_trees)
 len(sshat_trees)
@@ -572,7 +572,7 @@ print(tree2)
 ss = SubsplitSupport.from_trees([tree1, tree2])
 print(ss)
 len(ss.all_trees())  # 4
-ps = PCSSSupport.from_trees([tree1, tree2])
+ps = PCSSSupport_old.from_trees([tree1, tree2])
 print(ps)
 len(ps.all_trees())  # 2
 
@@ -590,8 +590,8 @@ ss1 = SubsplitSupport.from_tree(proj1)
 ss2 = SubsplitSupport.from_tree(proj2)
 sshat = ss1.mutualize(ss2)
 sshat_trees = set(sshat.all_trees())
-ps1 = PCSSSupport.from_tree(proj1)
-ps2 = PCSSSupport.from_tree(proj2)
+ps1 = PCSSSupport_old.from_tree(proj1)
+ps2 = PCSSSupport_old.from_tree(proj2)
 pshat = ps1.mutualize(ps2)
 pshat_trees = set(pshat.all_trees())
 
@@ -612,7 +612,7 @@ print(tree2)
 ss = SubsplitSupport.from_trees([tree1, tree2])
 print(ss)
 len(ss.all_trees())  # 4
-ps = PCSSSupport.from_trees([tree1, tree2])
+ps = PCSSSupport_old.from_trees([tree1, tree2])
 print(ps)
 len(ps.all_trees())  # 2
 
@@ -626,8 +626,8 @@ ss1 = SubsplitSupport.from_trees(proj1s)
 ss2 = SubsplitSupport.from_trees(proj2s)
 sshat = ss1.mutualize(ss2)
 sshat_trees = set(sshat.all_trees())
-ps1 = PCSSSupport.from_trees(proj1s)
-ps2 = PCSSSupport.from_trees(proj2s)
+ps1 = PCSSSupport_old.from_trees(proj1s)
+ps2 = PCSSSupport_old.from_trees(proj2s)
 pshat = ps1.mutualize(ps2)
 pshat_trees = set(pshat.all_trees())
 
@@ -636,7 +636,7 @@ set(trees).issubset(pshat_trees)
 len(sshat_trees)  # 4
 len(pshat_trees)  # 2
 
-# DONE?: Find an example where PCSSSupport results in fewer virtual trees during mutualization
+# DONE?: Find an example where PCSSSupport_old results in fewer virtual trees during mutualization
 
 # Automation
 
@@ -653,13 +653,13 @@ def trees_restrict_reconstruct(taxon_set, k=10, ambig=1, n=2):
     ss2 = SubsplitSupport.from_trees(proj2s)
     sshat = ss1.mutualize(ss2)
     sshat_trees = set(sshat.all_trees())
-    ps1 = PCSSSupport.from_trees(proj1s)
-    ps2 = PCSSSupport.from_trees(proj2s)
+    ps1 = PCSSSupport_old.from_trees(proj1s)
+    ps2 = PCSSSupport_old.from_trees(proj2s)
     pshat = ps1.mutualize(ps2)
     pshat_trees = set(pshat.all_trees())
 
     return (SubsplitSupport.from_trees(trees).to_set().issubset(sshat.to_set()),
-            PCSSSupport.from_trees(trees).to_set().issubset(pshat.to_set()),
+            PCSSSupport_old.from_trees(trees).to_set().issubset(pshat.to_set()),
             set(trees).issubset(sshat_trees), set(trees).issubset(pshat_trees),
             len(sshat_trees), len(pshat_trees), (trees, proj1s, proj2s))
 
