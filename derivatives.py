@@ -1,3 +1,4 @@
+from itertools import chain
 from classes import *
 
 
@@ -72,11 +73,15 @@ def scd_subsplit_via_subsplit_derivative(prob_of: Subsplit, via: Subsplit, wrt: 
     #     return transit.get(via, dict()).get(root_subsplit, 0.0) * scd_subsplit_to_subsplit_cond_derivative(prob_of=prob_of, cond_on=via, wrt=wrt, scd=scd, transit=transit)
     # else:
     #     return 0.0
-    return ((scd_subsplit_to_subsplit_cond_derivative(prob_of=via, cond_on=root_subsplit, wrt=wrt, scd=scd,
+    da_b = (scd_subsplit_to_subsplit_cond_derivative(prob_of=via, cond_on=root_subsplit, wrt=wrt, scd=scd,
                                                       transit=transit)
-             * transit.get(prob_of, dict()).get(via, 0.0))
-            + (transit.get(via, dict()).get(root_subsplit, 0.0) * scd_subsplit_to_subsplit_cond_derivative(
-                prob_of=prob_of, cond_on=via, wrt=wrt, scd=scd, transit=transit)))
+            * transit.get(prob_of, dict()).get(via, 0.0))
+    a_db = (transit.get(via, dict()).get(root_subsplit, 0.0)
+            * scd_subsplit_to_subsplit_cond_derivative(prob_of=prob_of, cond_on=via, wrt=wrt, scd=scd,
+                                                       transit=transit))
+    if abs(da_b) > 1e-14 and abs(a_db) > 1e-14:
+        print(f"Product rule needed: {via} -> {prob_of} wrt {wrt}")
+    return da_b + a_db
 
 
 def scd_estimate_subsplit_via_subsplit_derivative(prob_of: Subsplit, via: Subsplit, wrt: PCSS, scd: SCDSet, delta: float=0.0001, transit=None, transit2=None):
@@ -287,6 +292,75 @@ def scd_restricted_kl_gradient(scd: SCDSet, other: 'SCDSet',
             for wrt in scd.iter_pcss():
                 via_deriv_factor[wrt] = scd_subsplit_via_subsplit_derivative(prob_of=descendant, via=ancestor, wrt=wrt, scd=scd, transit=transit)
                 result[wrt] += -ancestor_factor * cond_factor * via_deriv_factor[wrt]
+    return result
+
+
+def scd_restricted_kl_gradient2(scd: SCDSet, other: 'SCDSet',
+                                transit: dict = None,
+                                restricted_self: 'SCDSet' = None,
+                                restricted_subsplit_probs: dict = None,
+                                other_subsplit_probs: dict = None):
+    restriction = other.root_clade()
+    root_subsplit = scd.root_subsplit()
+    if not restriction.issubset(scd.root_clade()):
+        raise ValueError("Argument 'other' has taxon set not a subset of this taxon set.")
+    if transit is None:
+        transit = scd.transit_probabilities()
+    if restricted_self is None:
+        restricted_self = scd.restrict(restriction)
+    if restricted_subsplit_probs is None:
+        restricted_subsplit_probs = restricted_self.subsplit_probabilities()
+    if other_subsplit_probs is None:
+        other_subsplit_probs = other.subsplit_probabilities()
+    res_transit = scd.restrict_transit(restriction, transit)
+    equiv_classes = scd.equiv_classes(restriction)
+    result = dict()
+    ancestor_factors = dict()
+    cond_factors = dict()
+    for res_parent in other.iter_subsplits(include_root=True):
+        n_dist_factor = len(list(res_parent.nontrivial_children()))
+        ancestor_factors[res_parent] = ancestor_factor = other_subsplit_probs[res_parent] / restricted_subsplit_probs[res_parent]
+        for wrt in scd.iter_pcss():
+            if wrt not in result:
+                result[wrt] = 0.0
+            wrt_parent = wrt.parent
+            wrt_parent_clade = wrt.parent_clade()
+            wrt_child = wrt.child
+            wrt_parent_prob = transit.get(wrt_parent, dict()).get(root_subsplit, 0.0)
+            wrt_cond_prob = scd.get(wrt)
+            wrt_child_to_res_parent = res_transit.get(res_parent, dict()).get(wrt_child, 0.0)
+            wrt_parent_clade_to_res_parent = res_transit.get(res_parent, dict()).get(wrt_parent_clade, 0.0)
+            result[wrt] += (
+                wrt_parent_prob * wrt_cond_prob * n_dist_factor * ancestor_factor
+                * (wrt_child_to_res_parent - wrt_parent_clade_to_res_parent)
+            )
+        for res_child in chain.from_iterable(other.get(res_parent)):
+            pcss_res = PCSS(res_parent, res_child)
+            cond_factors[pcss_res] = cond_factor = other.get(pcss_res) / restricted_self.get(pcss_res)
+            for wrt in scd.iter_pcss():
+                wrt_parent = wrt.parent
+                wrt_parent_clade = wrt.parent_clade()
+                wrt_child = wrt.child
+                wrt_parent_prob = transit.get(wrt_parent, dict()).get(root_subsplit, 0.0)
+                wrt_cond_prob = scd.get(wrt)
+                summation_factor1 = 0.0
+                summation_factor2 = 0.0
+                for ancestor in equiv_classes[res_parent]:
+                    summation_factor1 += (
+                        (transit.get(ancestor, dict()).get(wrt_child, 0.0)
+                         - transit.get(ancestor, dict()).get(wrt_parent_clade, 0.0))
+                        * res_transit.get(res_child, dict()).get(ancestor, 0.0)
+                    )
+                    summation_factor2 += (
+                        transit.get(ancestor, dict()).get(root_subsplit, 0.0)
+                        * transit.get(wrt_parent, dict()).get(ancestor, 0.0)
+                        * (res_transit.get(res_child, dict()).get(wrt_child, 0.0)
+                           - res_transit.get(res_child, dict()).get(wrt_parent_clade, 0.0))
+                    )
+                result[wrt] += (
+                        -wrt_parent_prob * wrt_cond_prob * ancestor_factor * cond_factor * summation_factor1
+                        - wrt_cond_prob * ancestor_factor * cond_factor * summation_factor2
+                )
     return result
 
 

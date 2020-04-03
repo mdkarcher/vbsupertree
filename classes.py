@@ -3715,6 +3715,19 @@ class SCDSet:
             result += self[parent].degrees_of_freedom()
         return result
 
+    def equiv_classes(self, restriction, include_root=True):
+        result = dict()
+        if include_root:
+            result[Subsplit(restriction)] = {self.root_subsplit()}
+        for subsplit in self.iter_subsplits(include_root=False):
+            subsplit_res = subsplit.restrict(restriction)
+            if subsplit_res.is_trivial():
+                continue
+            if subsplit_res not in result:
+                result[subsplit_res] = set()
+            result[subsplit_res].add(subsplit)
+        return result
+
     def get(self, item):
         if isinstance(item, Subsplit):
             parent_clade1 = SubsplitClade(item, item.clade1)
@@ -4123,6 +4136,23 @@ class SCDSet:
                 pcss_prob = prob1 * prob2
                 result.add(PCSS(restricted_ancestor, restricted_child), pcss_prob)
         result.normalize()
+        return result
+
+    def restrict_transit(self, restriction, transit=None):
+        root_subsplit = self.root_subsplit()
+        if transit is None:
+            transit = self.transit_probabilities()
+        result = dict()
+        for destination in transit:
+            dest_res = destination.restrict(restriction)
+            if dest_res.is_trivial() and destination != root_subsplit:
+                continue
+            if dest_res not in result:
+                result[dest_res] = dict()
+            for ancestor in transit[destination]:
+                if ancestor not in result[dest_res]:
+                    result[dest_res][ancestor] = 0.0
+                result[dest_res][ancestor] += transit[destination][ancestor]
         return result
 
     def root_clade(self):

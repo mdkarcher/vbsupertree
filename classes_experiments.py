@@ -423,10 +423,10 @@ def brute3(scd, delta):
                 transit=transit_for, transit2=transit2_for
             )
             est_res_simple[wrt_for][(via_for, prob_of_for)] = est
-            if not theo == est == 0.0:
-                print(f"{prob_of_for}|{via_for} wrt {wrt_for}")
-                print(f"Theo: {theo:8.4g}")
-                print(f"Est:  {est:8.4g}")
+            # if not theo == est == 0.0:
+            #     print(f"{prob_of_for}|{via_for} wrt {wrt_for}")
+            #     print(f"Theo: {theo:8.4g}")
+            #     print(f"Est:  {est:8.4g}")
     return theo_res_simple, est_res_simple
 
 
@@ -1436,5 +1436,49 @@ kl_deriv_alt1
 
 kl_deriv_alt2 = scd_restricted_kl_derivative_alt2(wrt=wrt, scd=scd, other=scd_small, transit=transit, restricted_scd=scd_res)
 kl_deriv_alt2
+
+# Experiment: transit probability via the set of all subsplits that restrict to the same subsplit
+
+from importlib import reload
+import classes
+
+reload(classes)
+from classes import *
+
+scd = SCDSet.random("ABCDE")
+transit = scd.transit_probabilities()
+restriction = Clade("ABCD")
+scd_res = scd.restrict(restriction)
+
+equiv_classes = scd.equiv_classes(restriction)
+
+starting = scd.root_subsplit()
+via_res = Subsplit("ABC", "D")
+ending = Subsplit("A", "B")
+
+result = 0.0
+for subsplit in equiv_classes[via_res]:
+    result += transit[subsplit][starting] * transit[ending][subsplit]
+result
+
+result1 = 0.0
+for subsplit in equiv_classes[via_res]:
+    result1 += transit[subsplit][starting]
+result1
+
+result2 = 0.0
+for subsplit in equiv_classes[via_res]:
+    result2 += transit[ending][subsplit]
+result2
+
+result1 * result2
+
+tree_dist = scd.tree_distribution()
+result_check = 0.0
+for subsplit in equiv_classes[via_res]:
+    prob = tree_dist.prob_all([subsplit, ending])
+    result_check += prob
+result_check
+
 
 

@@ -387,6 +387,30 @@ class TestBrute(unittest.TestCase):
                 n_flags += 1
         self.assertLess(n_flags, 5)
 
+    def test_restricted_kl_gradient2(self):
+        scd = SCDSet.random("ABCDE")
+        restriction = Clade("ABCD")
+        scd_res = scd.restrict(restriction)
+        transit = scd.transit_probabilities()
+        other = SCDSet.random(restriction)
+        other_pcss_probs = other.pcss_probabilities()
+
+        kl_grad = scd_restricted_kl_gradient2(scd=scd, other=other, transit=transit, restricted_self=scd_res)
+        brute_grad = brute_kl_gradient(scd=scd, other=other, scd_res=scd_res, transit=transit,
+                                       other_pcss_probs=other_pcss_probs)
+
+        n_flags = 0
+        for wrt_for in brute_grad:
+            theo = brute_grad[wrt_for]
+            if abs(theo) < 1e-16:
+                theo = 0.0
+            grad = kl_grad[wrt_for]
+            if abs(grad) < 1e-16:
+                grad = 0.0
+            if abs(theo - grad) > 1e-12:
+                n_flags += 1
+        self.assertLess(n_flags, 5)
+
     def test_restricted_conditional_derivative_alt1(self):
         scd = SCDSet.random("ABCDE")
         restriction = Clade("ABCD")
@@ -858,8 +882,8 @@ class TestDecomposition(unittest.TestCase):
 class TestSpeed(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.scd = SCDSet.random("ABCDEF")
-        cls.restriction = Clade("ABCDE")
+        cls.scd = SCDSet.random("ABCDE")
+        cls.restriction = Clade("ABCD")
         cls.other = SCDSet.random(cls.restriction)
         cls.scd_res = cls.scd.restrict(cls.restriction)
         cls.restricted_subsplit_probs = cls.scd_res.subsplit_probabilities()
@@ -890,6 +914,15 @@ class TestSpeed(unittest.TestCase):
 
     def test_kl_gradient_speed(self):
         scd_restricted_kl_gradient(scd=self.scd, other=self.other)
+
+    def test_kl_gradient2_speed_headstart(self):
+        scd_restricted_kl_gradient2(scd=self.scd, other=self.other, transit=self.transit,
+                                   restricted_self=self.scd_res,
+                                   restricted_subsplit_probs=self.restricted_subsplit_probs,
+                                   other_subsplit_probs=self.other_subsplit_probs)
+
+    def test_kl_gradient2_speed(self):
+        scd_restricted_kl_gradient2(scd=self.scd, other=self.other)
 
 
 if __name__ == '__main__':
