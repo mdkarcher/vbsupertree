@@ -4270,10 +4270,9 @@ class SCDSet:
         for key in arg:
             self.set_log(key, arg[key])
 
-    # TODO: Add PCSSSupport_old and update this function
-    def support(self, include_trivial=False):
-        return PCSSSupport_old(self.iter_pcss(),
-                               include_trivial=include_trivial)
+    # TODO: Verify
+    def support(self):
+        return PCSSSupport(self.iter_pcss())
 
     def taxon_set(self):
         return set().union(*(parent.subsplit.clade() for parent in self.data))
