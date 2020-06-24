@@ -4363,6 +4363,215 @@ class SCDSet:
                 continue
             self.data[parent][subsplit] = cond_probs[subsplit]
 
+    def subsplit_derivative(self, prob_of: Subsplit, wrt: PCSS, transit: dict = None):
+        root_subsplit = self.root_subsplit()
+        wrt_parent = wrt.parent
+        wrt_parent_clade = wrt.parent_clade()
+        wrt_child = wrt.child
+        if transit is None:
+            transit = self.transit_probabilities()
+        uncond_wrt = transit.get(wrt_parent, dict()).get(root_subsplit, 0.0) * self[wrt]
+        to_prob_of = transit.get(prob_of, dict())
+        child_to_prob_of = to_prob_of.get(wrt_child, 0.0)
+        parent_to_prob_of = to_prob_of.get(wrt_parent_clade, 0.0)
+        return uncond_wrt * (child_to_prob_of - parent_to_prob_of)
+
+    def subsplit_to_subsplit_cond_derivative(self, prob_of: Subsplit, cond_on: Subsplit, wrt: PCSS,
+                                             transit: dict = None):
+        parent = wrt.parent
+        parent_clade = wrt.parent_clade()
+        child = wrt.child
+        if transit is None:
+            transit = self.transit_probabilities()
+        uncond_wrt = transit.get(parent, dict()).get(cond_on, 0.0) * self[wrt]
+        to_prob_of = transit.get(prob_of, dict())
+        child_to_prob_of = to_prob_of.get(child, 0.0)
+        parent_to_prob_of = to_prob_of.get(parent_clade, 0.0)
+        return uncond_wrt * (child_to_prob_of - parent_to_prob_of)
+
+    def subsplit_via_subsplit_derivative(self, prob_of: Subsplit, via: Subsplit, wrt: PCSS, transit: dict = None):
+        root_subsplit = self.root_subsplit()
+        if transit is None:
+            transit = self.transit_probabilities()
+        da_b = (self.subsplit_to_subsplit_cond_derivative(prob_of=via, cond_on=root_subsplit, wrt=wrt, transit=transit)
+                * transit.get(prob_of, dict()).get(via, 0.0))
+        a_db = (transit.get(via, dict()).get(root_subsplit, 0.0)
+                * self.subsplit_to_subsplit_cond_derivative(prob_of=prob_of, cond_on=via, wrt=wrt, transit=transit))
+        return da_b + a_db
+
+    def restricted_subsplit_derivative(self, restriction: Clade, prob_of: Subsplit, wrt: PCSS, transit: dict = None):
+        root_subsplit = self.root_subsplit()
+        if transit is None:
+            transit = self.transit_probabilities()
+        result = 0.0
+        for subsplit in self.iter_subsplits(include_root=True):
+            restricted_subsplit = subsplit.restrict(restriction)
+            if not restricted_subsplit == prob_of or (restricted_subsplit.is_trivial() and subsplit != root_subsplit):
+                continue
+            result += self.subsplit_derivative(prob_of=subsplit, wrt=wrt, transit=transit)
+        return result
+
+    def restricted_pcss_derivative(self, restriction: Clade, prob_of: PCSS, wrt: PCSS, transit: dict = None):
+        root_subsplit = self.root_subsplit()
+        parent = prob_of.parent
+        child = prob_of.child
+        if transit is None:
+            transit = self.transit_probabilities()
+        result = 0.0
+        for destination in transit:
+            dest_res = destination.restrict(restriction)
+            if dest_res != child:
+                continue
+            for ancestor in transit[destination]:
+                if not isinstance(ancestor, Subsplit):
+                    continue
+                ansr_res = ancestor.restrict(restriction)
+                if ansr_res != parent or (ansr_res.is_trivial() and ancestor != root_subsplit):
+                    continue
+                result += self.subsplit_via_subsplit_derivative(prob_of=destination, via=ancestor, wrt=wrt,
+                                                                transit=transit)
+        return result
+
+    def restricted_conditional_derivative(self, restriction: Clade, prob_of: PCSS, wrt: PCSS,
+                                          transit: dict = None, restricted_scd: 'SCDSet' = None,
+                                          restricted_subsplit_probs: dict = None,
+                                          restricted_pcss_probs: dict = None):
+        if transit is None:
+            transit = self.transit_probabilities()
+        if restricted_subsplit_probs is None or restricted_pcss_probs is None:
+            if restricted_scd is None:
+                restricted_scd = self.restrict(restriction)
+            if restricted_subsplit_probs is None:
+                restricted_subsplit_probs = restricted_scd.subsplit_probabilities()
+            if restricted_pcss_probs is None:
+                restricted_pcss_probs = restricted_scd.pcss_probabilities()
+        # Quotient rule d(top/bot) = (bot*dtop-top*dbot) / bot**2
+        top = restricted_pcss_probs[prob_of]
+        bot = restricted_subsplit_probs[prob_of.parent]
+        dtop = self.restricted_pcss_derivative(restriction=restriction, prob_of=prob_of, wrt=wrt, transit=transit)
+        dbot = self.restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of.parent, wrt=wrt,
+                                                  transit=transit)
+        return (bot * dtop - top * dbot) / bot ** 2
+
+    def restricted_kl_derivative(self, wrt: PCSS, other: 'SCDSet', transit: dict = None,
+                                 restricted_scd: 'SCDSet' = None, other_pcss_probs: dict = None):
+        restriction = other.root_clade()
+        if not restriction.issubset(self.root_clade()):
+            raise ValueError("Non-concentric taxon sets.")
+        if transit is None:
+            transit = self.transit_probabilities()
+        if restricted_scd is None:
+            restricted_scd = self.restrict(restriction)
+        if other_pcss_probs is None:
+            other_pcss_probs = other.pcss_probabilities()
+        result = 0.0
+        for other_pcss in other.iter_pcss():
+            other_pcss_prob = other_pcss_probs[other_pcss]
+            restricted_cond = restricted_scd[other_pcss]
+            restricted_cond_deriv = self.restricted_conditional_derivative(
+                restriction=restriction, prob_of=other_pcss,
+                wrt=wrt, transit=transit,
+                restricted_scd=restricted_scd
+            )
+            intermediate_result = -other_pcss_prob * restricted_cond_deriv / restricted_cond
+            result += intermediate_result
+        return result
+
+    def restricted_kl_gradient(self, other: 'SCDSet',
+                               transit: dict = None,
+                               restricted_self: 'SCDSet' = None,
+                               restricted_subsplit_probs: dict = None,
+                               other_subsplit_probs: dict = None,
+                               res_transit: dict = None,
+                               equiv_classes: dict = None):
+        restriction = other.root_clade()
+        root_subsplit = self.root_subsplit()
+        if not restriction.issubset(self.root_clade()):
+            raise ValueError("Argument 'other' has taxon set not a subset of this taxon set.")
+        if transit is None:
+            transit = self.transit_probabilities()
+        if restricted_self is None:
+            restricted_self = self.restrict(restriction)
+        if restricted_subsplit_probs is None:
+            restricted_subsplit_probs = restricted_self.subsplit_probabilities()
+        if other_subsplit_probs is None:
+            other_subsplit_probs = other.subsplit_probabilities()
+        if res_transit is None:
+            res_transit = self.restrict_transit(restriction, transit)
+        if equiv_classes is None:
+            equiv_classes = self.equiv_classes(restriction)
+
+        ancestor_factors = dict()
+        cond_factors = dict()
+        result = dict()
+        for res_parent in other.iter_subsplits(include_root=True):
+            n_dist_factor = len(list(res_parent.nontrivial_children()))
+            ancestor_factors[res_parent] = ancestor_factor = (
+                other_subsplit_probs[res_parent] / restricted_subsplit_probs[res_parent]
+            )
+            for wrt in self.iter_pcss():
+                if wrt not in result:
+                    result[wrt] = 0.0
+                wrt_parent = wrt.parent
+                wrt_parent_clade = wrt.parent_clade()
+                wrt_child = wrt.child
+                wrt_parent_prob = transit.get(wrt_parent, dict()).get(root_subsplit, 0.0)
+                wrt_cond_prob = self.get(wrt)
+                wrt_child_to_res_parent = res_transit.get(res_parent, dict()).get(wrt_child, 0.0)
+                wrt_parent_clade_to_res_parent = res_transit.get(res_parent, dict()).get(wrt_parent_clade, 0.0)
+                result[wrt] += (
+                        wrt_parent_prob * wrt_cond_prob * n_dist_factor * ancestor_factor
+                        * (wrt_child_to_res_parent - wrt_parent_clade_to_res_parent)
+                )
+            for res_child in chain.from_iterable(other.get(res_parent)):
+                pcss_res = PCSS(res_parent, res_child)
+                cond_factors[pcss_res] = cond_factor = other.get(pcss_res) / restricted_self.get(pcss_res)
+                for wrt in self.iter_pcss():
+                    wrt_parent = wrt.parent
+                    wrt_parent_clade = wrt.parent_clade()
+                    wrt_child = wrt.child
+                    wrt_parent_prob = transit.get(wrt_parent, dict()).get(root_subsplit, 0.0)
+                    wrt_cond_prob = self.get(wrt)
+                    summation_factor1 = 0.0
+                    summation_factor2 = 0.0
+                    for ancestor in equiv_classes[res_parent]:
+                        summation_factor1 += (
+                                (transit.get(ancestor, dict()).get(wrt_child, 0.0)
+                                 - transit.get(ancestor, dict()).get(wrt_parent_clade, 0.0))
+                                * res_transit.get(res_child, dict()).get(ancestor, 0.0)
+                        )
+                        summation_factor2 += (
+                                transit.get(ancestor, dict()).get(root_subsplit, 0.0)
+                                * transit.get(wrt_parent, dict()).get(ancestor, 0.0)
+                                * (res_transit.get(res_child, dict()).get(wrt_child, 0.0)
+                                   - res_transit.get(res_child, dict()).get(wrt_parent_clade, 0.0))
+                        )
+                    result[wrt] += (
+                            -wrt_parent_prob * wrt_cond_prob * ancestor_factor * cond_factor * summation_factor1
+                            - wrt_cond_prob * ancestor_factor * cond_factor * summation_factor2
+                    )
+        return result
+
+    def restricted_kl_gradient_multi(self, others: List['SCDSet'], weights: List[float] = None,
+                                     transit: dict = None, restricted_selves: List['SCDSet'] = None):
+        if weights is None:
+            weights = [1] * len(others)
+        if restricted_selves is None:
+            restricted_selves = []
+            for other in others:
+                restriction = other.root_clade()
+                restricted_selves.append(self.restrict(restriction))
+        if not (len(others) == len(weights) == len(restricted_selves)):
+            raise ValueError("Argument 'others', 'weights', and 'restricted_selves' not equal length or None.")
+        if transit is None:
+            transit = self.transit_probabilities()
+        result = dict()
+        for other, weight, restricted_self in zip(others, weights, restricted_selves):
+            grad = self.restricted_kl_gradient(other=other, transit=transit, restricted_self=restricted_self)
+            for wrt in grad:
+                result[wrt] = result.get(wrt, 0.0) + grad[wrt] * weight
+        return result
+
     @staticmethod
     def random(taxon_set, concentration=1.0, cutoff=0.0):
         result = SCDSet()
