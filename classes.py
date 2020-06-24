@@ -22,13 +22,16 @@ TreeRecursion = namedtuple("TreeRecursion", ['subsplit_set', 'clade_stack'])
 
 
 class MyTree:
-    def __init__(self, tree=None):
+    def __init__(self, tree=None, format=None):
         if tree is None:
             self.tree = ete3.Tree()
         elif isinstance(tree, ete3.Tree):
             self.tree = tree.copy()
         elif isinstance(tree, str):
-            self.tree = ete3.Tree(tree)
+            if format is None:
+                self.tree = ete3.Tree(tree)
+            else:
+                self.tree = ete3.Tree(tree, format=format)
         elif isinstance(tree, MyTree):
             self.tree = tree.tree.copy()
         else:
