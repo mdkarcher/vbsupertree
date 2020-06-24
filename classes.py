@@ -4744,7 +4744,7 @@ def l2norm_dict_of_dicts(dd):
     return result
 
 
-def gradient_descent_one(starting: CCDSet, reference: CCDSet, starting_gamma=1.0, max_iteration=50, verbose=True, const=0.5):
+def ccd_gradient_descent_one(starting: CCDSet, reference: CCDSet, starting_gamma=1.0, max_iteration=50, verbose=True, const=0.5):
     restriction = reference.root_clade()
     current = starting.copy()
     current_r = current.restrict(restriction)
@@ -4784,8 +4784,8 @@ def gradient_descent_one(starting: CCDSet, reference: CCDSet, starting_gamma=1.0
     return current, kl_list
 
 
-def gradient_descent(starting: CCDSet, references: List[CCDSet], starting_gamma=1.0, true_reference: CCDSet = None,
-                     max_iteration=50, verbose=True, const=0.5, shrink_factor=0.5, grow_factor=1.1):
+def ccd_gradient_descent(starting: CCDSet, references: List[CCDSet], starting_gamma=1.0, true_reference: CCDSet = None,
+                         max_iteration=50, verbose=True, const=0.5, shrink_factor=0.5, grow_factor=1.1):
     weights = [1] * len(references)
     restrictions = [reference.root_clade() for reference in references]
     current = starting.copy()
@@ -4842,5 +4842,116 @@ def gradient_descent(starting: CCDSet, references: List[CCDSet], starting_gamma=
         return current, kl_list, true_kl_list
     else:
         return current, kl_list
+
+
+def scd_gradient_descent_one(starting: SCDSet, reference: SCDSet, starting_gamma=1.0, true_reference: SCDSet = None,
+                             max_iteration=50, verbose=True, const=0.5, shrink_factor=0.5, grow_factor=1.1):
+    restriction = reference.root_clade()
+    current = starting.copy()
+    current_r = current.restrict(restriction)
+    current_kl = reference.kl_divergence(current_r)
+    current_transit = current.transit_probabilities()
+    current_grad = current.restricted_kl_gradient(other=reference, transit=current_transit, restricted_self=current_r)
+    current_grad_l2 = l2norm2(current_grad)
+    gamma = starting_gamma
+    kl_list = [current_kl]
+    true_kl_list = []
+    if true_reference is not None:
+        true_kl_list = [true_reference.kl_divergence(current)]
+    iteration = 0
+    while iteration < max_iteration:
+        iteration += 1
+        candidate = current.copy()
+        candidate.add_many_log(current_grad, -gamma)
+        candidate.normalize()
+        candidate_r = candidate.restrict(restriction)
+        candidate_kl = reference.kl_divergence(candidate_r)
+        if verbose:
+            print(f"Iter {iteration}: KL={candidate_kl:8.4g}")
+        # Armijo-Goldstein condition:
+        # see https://math.stackexchange.com/questions/373868/optimal-step-size-in-gradient-descent
+        if candidate_kl <= current_kl - const*gamma*current_grad_l2:
+            gamma = gamma * grow_factor
+        else:
+            gamma = gamma * shrink_factor
+            if verbose:
+                print(f"Shrinking gamma to {gamma}")
+        if candidate_kl <= current_kl:
+            current = candidate
+            current_r = candidate_r
+            current_kl = candidate_kl
+            current_transit = current.transit_probabilities()
+            current_grad = current.restricted_kl_gradient(other=reference, transit=current_transit, restricted_self=current_r)
+            current_grad_l2 = l2norm2(current_grad)
+        else:
+            if verbose:
+                print("Move rejected!")
+        kl_list.append(current_kl)
+        if true_reference is not None:
+            true_kl_list.append(true_reference.kl_divergence(current))
+    if verbose:
+        print(f"Final KL={current_kl:8.4g}")
+    if true_reference is not None:
+        return current, kl_list, true_kl_list
+    return current, kl_list
+
+
+def scd_gradient_descent(starting: SCDSet, references: List[SCDSet], starting_gamma=1.0, true_reference: SCDSet = None,
+                         max_iteration=50, verbose=True, const=0.5, shrink_factor=0.5, grow_factor=1.1):
+    weights = [1] * len(references)
+    restrictions = [reference.root_clade() for reference in references]
+    current = starting.copy()
+    current_rs = [current.restrict(restriction) for restriction in restrictions]
+    current_kl = sum(weight*reference.kl_divergence(current_r) for (weight, reference, current_r) in zip(weights, references, current_rs))
+    current_transit = current.transit_probabilities()
+    current_grad = current.restricted_kl_gradient_multi(others=references, weights=weights,
+                                                        transit=current_transit, restricted_selves=current_rs)
+    current_grad_l2 = l2norm2(current_grad)
+    gamma = starting_gamma
+    kl_list = [current_kl]
+    if true_reference is not None:
+        true_kl_list = [true_reference.kl_divergence(current)]
+    iteration = 0
+    if verbose:
+        print(f"Iter {iteration}: KL={current_kl:8.4g}")
+    while iteration < max_iteration:
+        iteration += 1
+        candidate = current.copy()
+        candidate.add_many_log(current_grad, -gamma)
+        candidate.normalize()
+        candidate_rs = [candidate.restrict(restriction) for restriction in restrictions]
+        candidate_kl = sum(weight*reference.kl_divergence(candidate_r) for (weight, reference, candidate_r) in zip(weights, references, candidate_rs))
+        if verbose:
+            print(f"Iter {iteration}: KL={candidate_kl:8.4g}")
+        # Armijo-Goldstein condition:
+        # see https://math.stackexchange.com/questions/373868/optimal-step-size-in-gradient-descent
+        if candidate_kl <= current_kl - const*gamma*current_grad_l2:
+            gamma = gamma * grow_factor
+        else:
+            gamma = gamma * shrink_factor
+            if verbose:
+                print(f"Shrinking gamma to {gamma}")
+        if candidate_kl <= current_kl:
+            current = candidate
+            current_rs = candidate_rs
+            current_kl = candidate_kl
+            current_transit = current.transit_probabilities()
+            current_grad = current.restricted_kl_gradient_multi(others=references, weights=weights,
+                                                                transit=current_transit,
+                                                                restricted_selves=current_rs)
+            current_grad_l2 = l2norm2(current_grad)
+            # if verbose:
+            #     print("Move accepted")
+        else:
+            if verbose:
+                print("Move rejected!")
+        kl_list.append(current_kl)
+        if true_reference is not None:
+            true_kl_list.append(true_reference.kl_divergence(current))
+    if verbose:
+        print(f"Final KL={current_kl:8.4g}")
+    if true_reference is not None:
+        return current, kl_list, true_kl_list
+    return current, kl_list
 
 
