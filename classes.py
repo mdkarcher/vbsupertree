@@ -286,6 +286,13 @@ class MyTree:
             result *= clade_probs[clade]
         return result
 
+    def rename_tips(self, map_dict, refresh_attributes=True):
+        for tip in self.tree.iter_leaves():
+            if tip.name in map_dict:
+                tip.name = map_dict[tip.name]
+        if refresh_attributes:
+            self.refresh_attributes()
+
     # Unfinished
     def label_restriction(self, restriction):
         for node in self.tree.traverse("postorder"):
