@@ -4132,17 +4132,15 @@ class SCDSet:
 
     # TODO: parallel to random_tree
     def random_tree(self):
-        if not self.is_complete():
-            raise ValueError("CCDSet not complete, no tree possible.")
-        root_clade = self.root_clade()
-        assert len(root_clade) > 1
-        root_subsplit = self.root_subsplit()
+        # if not self.is_complete():
+        #     raise ValueError("SCDSet not complete, no tree possible.")
+        root_subsplit_clade = self.root_subsplit_clade()
         tree = MyTree()
 
-        parent_stack = [(tree.tree, root_clade, root_subsplit)]  # MyTree alteration
-        while parent_stack:
-            node, clade, parent = parent_stack.pop()
-            subsplit = self.data[parent][clade].sample()
+        parent_clade_stack = [(tree.tree, root_subsplit_clade)]  # MyTree alteration
+        while parent_clade_stack:
+            node, parent_clade = parent_clade_stack.pop()
+            subsplit = self.data[parent_clade].sample()
             node.name = str(subsplit)
             # assert len(subsplit) == 2
             left = subsplit.clade1
@@ -4150,12 +4148,14 @@ class SCDSet:
             assert len(left) > 0 and len(right) > 0
             if len(left) > 1:
                 left_node = node.add_child()
-                parent_stack.append((left_node, left, subsplit))
+                subsplit_clade = SubsplitClade(subsplit, left)
+                parent_clade_stack.append((left_node, subsplit_clade))
             else:
                 node.add_child(name=str(left))
             if len(right) > 1:
                 right_node = node.add_child()
-                parent_stack.append((right_node, right, subsplit))
+                subsplit_clade = SubsplitClade(subsplit, right)
+                parent_clade_stack.append((right_node, subsplit_clade))
             else:
                 node.add_child(name=str(right))
         return tree
