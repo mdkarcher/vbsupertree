@@ -1,11 +1,12 @@
 import collections
 from collections import defaultdict
 from collections import namedtuple
+from collections import Counter
 from itertools import chain
 from itertools import product
 from itertools import combinations
 from operator import itemgetter
-from typing import List
+from typing import List, Sequence
 import pprint
 import random
 import math
@@ -1845,6 +1846,13 @@ class ProbabilityDistribution(collections.abc.MutableMapping):
         pr = ProbabilityDistribution.random(support, concentration)
         return pr
 
+    @staticmethod
+    def from_list(items: list):
+        count = Counter(items)
+        n = len(items)
+        return ProbabilityDistribution({item: k/n for item, k in count.items()})
+
+
 
 class PCMiniSet:
     def __init__(self, parent, arg=None):
@@ -2222,6 +2230,12 @@ class TreeDistribution(ProbabilityDistribution):
             if any(item in tree for item in items):
                 result += self[tree]
         return result
+
+    @staticmethod
+    def from_list(items: Sequence[MyTree]):
+        count = Counter(items)
+        n = len(items)
+        return TreeDistribution({item: k / n for item, k in count.items()})
 
 
 class CCDSet:
