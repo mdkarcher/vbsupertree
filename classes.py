@@ -1353,9 +1353,42 @@ class PCSSSupport:
 
     # TODO: Bookmark
     def restrict(self, taxon_set):
+        root_subsplit_clade = self.root_subsplit_clade()
         result = PCSSSupport()
-        for parent in self.data:
-            result.update(pcss.restrict(taxon_set) for pcss in self[parent].to_pcss_set())
+        parent_clade_stack = [(root_subsplit_clade, root_subsplit_clade.restrict(taxon_set))]
+        visited = set()
+        while parent_clade_stack:
+            parent_clade, last_valid_parent_clade = parent_clade_stack.pop()
+            if (parent_clade, last_valid_parent_clade) in visited:
+                continue
+            visited.add((parent_clade, last_valid_parent_clade))
+            for child in self.data[parent_clade]:
+                restricted_child = child.restrict(taxon_set)
+                if not restricted_child.is_trivial():
+                    result.add(PCSS(last_valid_parent_clade, restricted_child))
+                    if len(child.clade1 & taxon_set) > 1:
+                        parent_clade_stack.append(
+                            (SubsplitClade(child, child.clade1),
+                             SubsplitClade(restricted_child, child.clade1 & taxon_set))
+                        )
+                    if len(child.clade2 & taxon_set) > 1:
+                        parent_clade_stack.append(
+                            (SubsplitClade(child, child.clade2),
+                             SubsplitClade(restricted_child, child.clade2 & taxon_set))
+                        )
+                else:
+                    if len(child.clade1 & taxon_set) > 1:
+                        parent_clade_stack.append(
+                            (SubsplitClade(child, child.clade1),
+                             last_valid_parent_clade)
+                        )
+                    if len(child.clade2 & taxon_set) > 1:
+                        parent_clade_stack.append(
+                            (SubsplitClade(child, child.clade2),
+                             last_valid_parent_clade)
+                        )
+        # for parent in self.data:
+        #     result.update(pcss.restrict(taxon_set) for pcss in self[parent].to_pcss_set())
         return result
 
     def to_set(self):
