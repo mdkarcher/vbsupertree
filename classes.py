@@ -4615,21 +4615,22 @@ class SCDSet:
         return result
 
     @staticmethod
-    def random_from_support(support: PCSSSupport_old, concentration: float = 1.0):
+    def random_from_support(support: PCSSSupport, concentration: float = 1.0):
         result = SCDSet()
-        root_subsplit = support.root_subsplit()
-        parent_stack = [root_subsplit]
-        visited_parents = set()
-        while parent_stack:
-            parent = parent_stack.pop()
-            if parent in visited_parents:
+        root_subsplit_clade = support.root_subsplit_clade()
+        parent_clade_stack = [root_subsplit_clade]
+        visited_parent_clades = set()
+        while parent_clade_stack:
+            parent_clade = parent_clade_stack.pop()
+            if parent_clade in visited_parent_clades:
                 continue
-            visited_parents.add(parent)
-            mini_support = support[parent]
-            pcmini = PCMiniSet.random(parent, concentration=concentration)
-            result.data[parent] = pcmini
-            for child in pcmini:
-                parent_stack.append(child)
+            visited_parent_clades.add(parent_clade)
+            children = support[parent_clade]
+            dist = ProbabilityDistribution.random(support=children, concentration=concentration)
+            result.data[parent_clade] = dist
+            for subsplit in dist:
+                for child in subsplit.nontrivial_children():
+                    parent_clade_stack.append(SubsplitClade(subsplit, child))
         return result
 
     # TODO: Write test
