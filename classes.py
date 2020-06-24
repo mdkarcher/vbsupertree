@@ -1257,6 +1257,12 @@ class PCSSSupport:
             return False
         return self.to_set() == other.to_set()
 
+    def __len__(self):
+        result = 0
+        for parent_clade, children in self.data.items():
+            result += len(children)
+        return result
+
     def add(self, pcss):
         if not isinstance(pcss, PCSS):
             raise TypeError("Argument 'pcss' not class PCSS")
