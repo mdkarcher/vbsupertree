@@ -1231,6 +1231,9 @@ class PCSSSupport:
         self.data = dict()
         self.update(arg)
 
+    def __copy__(self):
+        return PCSSSupport(self.to_set())
+
     def __repr__(self):
         pretty_repr = pprint.pformat(self.to_set())
         if '\n' in pretty_repr:
@@ -1274,6 +1277,9 @@ class PCSSSupport:
         if parent_clade not in self.data:
             self.data[parent_clade] = set()
         self.data[parent_clade].add(pcss.child)
+
+    def copy(self):
+        return self.__copy__()
 
     def get(self, parent, default=None):
         if isinstance(parent, SubsplitClade):
@@ -1534,6 +1540,41 @@ class PCSSSupport:
 
     def parent_clades(self):
         yield from iter(self.data.keys())
+
+    def prune(self, verbose=False):
+        result = self.copy()
+        n = result._prune()
+        if verbose:
+            print(f"Number of pruning iterations: {n}")
+        return result
+
+    def _prune(self):
+        n_iterations = 0
+        did_anything = True
+        while did_anything:
+            did_anything = self._prune_once()
+            n_iterations += 1
+        return n_iterations
+
+    def _prune_once(self):
+        did_anything = False
+        parent_clades = sorted(self.data.keys(), key=lambda x: len(x.clade))
+        for parent_clade in parent_clades:
+            if len(parent_clade.clade) < 2:
+                continue
+            children = list(self.data[parent_clade])
+            for child in children:
+                remove_child = False
+                for child_clade in child.nontrivial_children():
+                    if SubsplitClade(child, child_clade) not in self.data:
+                        remove_child = True
+                        did_anything = True
+                if remove_child:
+                    self.data[parent_clade].remove(child)
+            if len(self.data[parent_clade]) == 0:
+                self.data.pop(parent_clade)
+                did_anything = True
+        return did_anything
 
     @staticmethod
     def from_tree(tree):
