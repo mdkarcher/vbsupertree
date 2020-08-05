@@ -1550,7 +1550,7 @@ class PCSSSupport:
 
     def _prune(self):
         n_iterations = 0
-        did_anything = True
+        did_anything = self._prune_once()
         while did_anything:
             did_anything = self._prune_once()
             n_iterations += 1
@@ -1701,6 +1701,15 @@ class ProbabilityDistribution(collections.abc.MutableMapping):
 
     def degrees_of_freedom(self):
         return len(self) - 1
+
+    def dust(self, threshold):
+        result = self.copy()
+        for item, prob in self.items():
+            if prob < threshold:
+                result.remove(item)
+        if self.normalized:
+            result.normalize()
+        return result
 
     def get(self, item, log=False):
         if log:
@@ -3924,7 +3933,7 @@ class SCDSet:
                 subsplit_probs[child] += uncond_prob
         return subsplit_probs, pcss_probs
 
-    def pcss_probabilities(self):
+    def pcss_probabilities(self, verbose=False):
         parents = sorted(self.parents(), key=lambda par: (-len(par.subsplit), par.subsplit.clade(), -len(par.clade)))
         parent_probs = dict()
         result = dict()
@@ -3932,7 +3941,10 @@ class SCDSet:
         for parent in parents:
             for child in self[parent]:
                 pcss = PCSS(parent, child)
-                uncond_prob = parent_probs[parent.subsplit] * self.get(pcss)
+                parent_prob = parent_probs.get(parent.subsplit, 0.0)
+                if parent_prob == 0.0 and verbose:
+                    print(f"Parent with zero probability: {parent.subsplit}")
+                uncond_prob = parent_prob * self.get(pcss)
                 if pcss not in result:
                     result[pcss] = 0.0
                 result[pcss] += uncond_prob
@@ -4171,7 +4183,41 @@ class SCDSet:
     def parents(self):
         return self.data.keys()
 
-    # TODO: parallel to random_tree
+    def prune(self, verbose=False):
+        result = self.copy()
+        n = result._prune()
+        if verbose:
+            print(f"Number of pruning iterations: {n}")
+        return result
+
+    def _prune(self):
+        n_iterations = 0
+        did_anything = self._prune_once()
+        while did_anything:
+            did_anything = self._prune_once()
+            n_iterations += 1
+        return n_iterations
+
+    def _prune_once(self):
+        did_anything = False
+        parent_clades = sorted(self.data.keys(), key=lambda x: len(x.clade))
+        for parent_clade in parent_clades:
+            if len(parent_clade.clade) < 2:
+                continue
+            children = list(self.data[parent_clade])
+            for child in children:
+                remove_child = False
+                for child_clade in child.nontrivial_children():
+                    if SubsplitClade(child, child_clade) not in self.data:
+                        remove_child = True
+                        did_anything = True
+                if remove_child:
+                    self.data[parent_clade].remove(child)
+            if len(self.data[parent_clade]) == 0:
+                self.data.pop(parent_clade)
+                did_anything = True
+        return did_anything
+
     def random_tree(self):
         # if not self.is_complete():
         #     raise ValueError("SCDSet not complete, no tree possible.")
@@ -4201,13 +4247,16 @@ class SCDSet:
                 node.add_child(name=str(right))
         return tree
 
-    # TODO: Update
-    def remove(self, parent, child):
-        if not isinstance(parent, Subsplit):
-            raise TypeError("Argument 'parent' not class Subsplit")
-        if not isinstance(child, Subsplit):
-            raise TypeError("Argument 'child' not class Subsplit")
-        self.data[parent].remove(child)
+    def remove(self, pcss: PCSS):
+        parent_clade = pcss.parent_clade()
+        if not isinstance(pcss, PCSS):
+            raise TypeError("Argument 'pcss' not class PCSS")
+        self.data[parent_clade].remove(pcss.child)
+
+    # TODO: Add correct handling if arg is not iterable
+    def remove_many(self, arg):
+        for pcss in arg:
+            self.remove(pcss)
 
     def restrict(self, taxon_set, verbose=False):
         taxon_set = Clade(taxon_set)

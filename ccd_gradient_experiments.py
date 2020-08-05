@@ -22,7 +22,7 @@ Xbar = Clade("ABCDE")
 ccd = CCDSet.random(X)
 ccd_small = CCDSet.random(Xbar)
 
-candidate, kl_list = gradient_descent_one(starting=ccd, reference=ccd_small, starting_gamma=1.0, max_iteration=200)
+candidate, kl_list = ccd_gradient_descent_one(starting=ccd, reference=ccd_small, starting_gamma=1.0, max_iteration=200)
 
 candidate_tree_dist = candidate.tree_distribution().restrict(Xbar)
 candidate_tree_dist2 = candidate.restrict(Xbar).tree_distribution()
@@ -42,7 +42,7 @@ references = [true_ccd.restrict(restriction) for restriction in restrictions]
 starting_ccd1 = CCDSet.random(X)
 true_ccd.kl_divergence(starting_ccd1)
 
-ccd, kl_list = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, max_iteration=200)
+ccd, kl_list = ccd_gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, max_iteration=200)
 
 true_ccd.kl_divergence(ccd)
 ccd.kl_divergence(true_ccd)
@@ -66,7 +66,7 @@ starting_ccd1 = CCDSet.random(X)
 references[0].kl_divergence(starting_ccd1.restrict(restrictions[0]))
 references[1].kl_divergence(starting_ccd1.restrict(restrictions[1]))
 
-ccd, kl_list = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, max_iteration=200)
+ccd, kl_list = ccd_gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, max_iteration=200)
 
 true_ccd.kl_divergence(ccd)
 ccd.kl_divergence(true_ccd)
@@ -89,7 +89,7 @@ references = [true_ccd.restrict(restriction) for restriction in restrictions]
 starting_ccd1 = CCDSet.random(X)
 true_ccd.kl_divergence(starting_ccd1)
 
-ccd1, kl_list1 = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, max_iteration=200)
+ccd1, kl_list1 = ccd_gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, max_iteration=200)
 
 true_ccd.kl_divergence(ccd1)
 ccd1.kl_divergence(true_ccd)
@@ -101,7 +101,7 @@ starting_ccd2 = CCDSet.random(X)
 true_ccd.kl_divergence(starting_ccd2)
 starting_ccd1.kl_divergence(starting_ccd2)
 
-ccd2, kl_list2 = gradient_descent(starting=starting_ccd2, references=references, starting_gamma=2.0, max_iteration=200)
+ccd2, kl_list2 = ccd_gradient_descent(starting=starting_ccd2, references=references, starting_gamma=2.0, max_iteration=200)
 
 true_ccd.kl_divergence(ccd2)
 ccd2.kl_divergence(true_ccd)
@@ -121,7 +121,7 @@ references = [true_ccd.restrict(restriction) for restriction in restrictions]
 starting_ccd1 = CCDSet.random(X)
 true_ccd.kl_divergence(starting_ccd1)
 
-ccd, kl_list = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, max_iteration=200)
+ccd, kl_list = ccd_gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, max_iteration=200)
 
 true_ccd.kl_divergence(ccd)
 ccd.kl_divergence(true_ccd)
@@ -202,7 +202,7 @@ true_ccd.kl_divergence(starting_ccd)
 
 [reference.kl_divergence(starting_ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
 
-ccd, kl_list, true_kl_list = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+ccd, kl_list, true_kl_list = ccd_gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
 
 np.round(np.array(true_kl_list), 3)
 
@@ -237,7 +237,7 @@ sum(split_kl.values())
 organized_gradient = starting_ccd1.restricted_kl_divergence_gradient_multi_organized(references)
 l2norm_dict_of_dicts(organized_gradient)
 
-ccd, kl_list, true_kl_list = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+ccd, kl_list, true_kl_list = ccd_gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
 
 true_ccd.kl_divergence(ccd)
 kl_list[0] - kl_list[-1]
@@ -268,7 +268,7 @@ sum(reference.kl_divergence(starting_ccd1.restrict(restriction)) for reference, 
 organized_gradient = starting_ccd1.restricted_kl_divergence_gradient_multi_organized(references)
 l2norm_dict_of_dicts(organized_gradient)
 
-ccd, kl_list, true_kl_list = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=500)
+ccd, kl_list, true_kl_list = ccd_gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=500)
 
 true_ccd.kl_divergence(ccd)
 kl_list[0] - kl_list[-1]
@@ -305,7 +305,7 @@ sum(split_kl1.values())
 organized_gradient1 = starting_ccd1.restricted_kl_divergence_gradient_multi_organized(references)
 l2norm_dict_of_dicts(organized_gradient1)
 
-ccd1, kl_list1, true_kl_list1 = gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+ccd1, kl_list1, true_kl_list1 = ccd_gradient_descent(starting=starting_ccd1, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
 
 true_ccd.kl_divergence(ccd1)
 kl_list1[0] - kl_list1[-1]
@@ -329,7 +329,7 @@ sum(split_kl2.values())
 organized_gradient2 = starting_ccd2.restricted_kl_divergence_gradient_multi_organized(references)
 l2norm_dict_of_dicts(organized_gradient2)
 
-ccd2, kl_list2, true_kl_list2 = gradient_descent(starting=starting_ccd2, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+ccd2, kl_list2, true_kl_list2 = ccd_gradient_descent(starting=starting_ccd2, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
 
 true_ccd.kl_divergence(ccd2)
 kl_list2[0] - kl_list2[-1]
@@ -395,7 +395,7 @@ true_ccd.kl_divergence(starting_ccd)
 
 [reference.kl_divergence(starting_ccd.restrict(restriction)) for reference, restriction in zip(references, restrictions)]
 
-ccd, kl_list, true_kl_list = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+ccd, kl_list, true_kl_list = ccd_gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
 
 np.round(np.array(true_kl_list), 3)
 
@@ -517,13 +517,13 @@ true_support.to_set() == common_support_1by1.to_set()
 
 starting_ccd = CCDSet.random_from_support(common_support_1by1)
 true_ccd.kl_divergence(starting_ccd)
-ccd_all, kl_list_all, true_kl_list_all = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+ccd_all, kl_list_all, true_kl_list_all = ccd_gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
 true_ccd.kl_divergence(ccd_all)
 
 len(selected_support)
 starting_ccd_some = CCDSet.random_from_support(selected_support)
 true_ccd.kl_divergence(starting_ccd_some)
-ccd_some, kl_list_some, true_kl_list_some = gradient_descent(starting=starting_ccd_some, references=references[:4], starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+ccd_some, kl_list_some, true_kl_list_some = ccd_gradient_descent(starting=starting_ccd_some, references=references[:4], starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
 true_ccd.kl_divergence(ccd_some)
 
 #
@@ -568,7 +568,7 @@ true_support.to_set() == common_support_1by1.to_set()
 
 starting_ccd = CCDSet.random_from_support(common_support_1by1)
 true_ccd.kl_divergence(starting_ccd)
-ccd_all, kl_list_all, true_kl_list_all = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+ccd_all, kl_list_all, true_kl_list_all = ccd_gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
 true_ccd.kl_divergence(ccd_all)
 
 #
@@ -609,6 +609,6 @@ true_support.to_set() == common_support_1by1.to_set()
 
 starting_ccd = CCDSet.random_from_support(common_support_1by1)
 true_ccd.kl_divergence(starting_ccd)
-ccd_all, kl_list_all, true_kl_list_all = gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
+ccd_all, kl_list_all, true_kl_list_all = ccd_gradient_descent(starting=starting_ccd, references=references, starting_gamma=2.0, true_reference=true_ccd, max_iteration=200)
 true_ccd.kl_divergence(ccd_all)
 

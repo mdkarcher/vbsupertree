@@ -514,6 +514,65 @@ class TestSCDSSet(unittest.TestCase):
         self.assertEqual(max_clade_cred_tree, max_clade_tree)
         self.assertAlmostEqual(max_clade_cred_tree.clade_score(clade_probs), max_clade_score)
 
+    def test_restricted_kl_gradient_multi(self):
+        pcss_conditional_probs_big = {
+            PCSS(Subsplit("ABCDE"), Subsplit("ABCD", "E")): 0.7,
+            PCSS(Subsplit("ABCDE"), Subsplit("ABC", "DE")): 0.3,
+            PCSS(Subsplit("ABCD", "E"), Subsplit("AB", "CD")): 0.4,
+            PCSS(Subsplit("ABCD", "E"), Subsplit("ABC", "D")): 0.6,
+            PCSS(Subsplit("ABC", "DE"), Subsplit("AB", "C")): 0.3,
+            PCSS(Subsplit("ABC", "DE"), Subsplit("A", "BC")): 0.7,
+            PCSS(Subsplit("ABC", "DE"), Subsplit("D", "E")): 1.0,
+            PCSS(Subsplit("ABC", "D"), Subsplit("AB", "C")): 0.8,
+            PCSS(Subsplit("ABC", "D"), Subsplit("A", "BC")): 0.2,
+            PCSS(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+            PCSS(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+            PCSS(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+            PCSS(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+        }
+        pcss_conditional_probs1 = {
+            PCSS(Subsplit("ABCD"), Subsplit("AB", "CD")): 0.4,
+            PCSS(Subsplit("ABCD"), Subsplit("ABC", "D")): 0.6,
+            PCSS(Subsplit("ABC", "D"), Subsplit("AB", "C")): 2 / 3,
+            PCSS(Subsplit("ABC", "D"), Subsplit("A", "BC")): 1 / 3,
+            PCSS(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+            PCSS(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+            PCSS(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+            PCSS(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+        }
+        pcss_conditional_probs2 = {
+            PCSS(Subsplit("ABCD"), Subsplit("AB", "CD")): 0.5,
+            PCSS(Subsplit("ABCD"), Subsplit("ABC", "D")): 0.5,
+            PCSS(Subsplit("ABC", "D"), Subsplit("AB", "C")): 0.5,
+            PCSS(Subsplit("ABC", "D"), Subsplit("A", "BC")): 0.5,
+            PCSS(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+            PCSS(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+            PCSS(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+            PCSS(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+        }
+        answer = {
+            PCSS(Subsplit(Clade(), Clade({'A', 'B', 'C', 'D', 'E'})), Subsplit(Clade({'A', 'B', 'C', 'D'}), Clade({'E'}))): -0.14124748490945693,
+            PCSS(Subsplit(Clade(), Clade({'A', 'B', 'C', 'D', 'E'})), Subsplit(Clade({'A', 'B', 'C'}), Clade({'D', 'E'}))): 0.14124748490945677,
+            PCSS(Subsplit(Clade({'A', 'B', 'C', 'D'}), Clade({'E'})), Subsplit(Clade({'A', 'B'}), Clade({'C', 'D'}))): -0.2835010060362173,
+            PCSS(Subsplit(Clade({'A', 'B', 'C', 'D'}), Clade({'E'})), Subsplit(Clade({'A', 'B', 'C'}), Clade({'D'}))): 0.28350100603621725,
+            PCSS(Subsplit(Clade({'A', 'B', 'C'}), Clade({'D', 'E'})), Subsplit(Clade({'A', 'B'}), Clade({'C'}))): 0.0003018108651911544,
+            PCSS(Subsplit(Clade({'A', 'B', 'C'}), Clade({'D', 'E'})), Subsplit(Clade({'A'}), Clade({'B', 'C'}))): -0.0003018108651911683,
+            PCSS(Subsplit(Clade({'A', 'B', 'C'}), Clade({'D', 'E'})), Subsplit(Clade({'D'}), Clade({'E'}))): 0.0,
+            PCSS(Subsplit(Clade({'A', 'B', 'C'}), Clade({'D'})), Subsplit(Clade({'A', 'B'}), Clade({'C'}))): 0.0003219315895372707,
+            PCSS(Subsplit(Clade({'A', 'B', 'C'}), Clade({'D'})), Subsplit(Clade({'A'}), Clade({'B', 'C'}))): -0.00032193158953724293,
+            PCSS(Subsplit(Clade({'A', 'B'}), Clade({'C', 'D'})), Subsplit(Clade({'A'}), Clade({'B'}))): 0.0,
+            PCSS(Subsplit(Clade({'A', 'B'}), Clade({'C'})), Subsplit(Clade({'A'}), Clade({'B'}))): 0.0,
+            PCSS(Subsplit(Clade({'A'}), Clade({'B', 'C'})), Subsplit(Clade({'B'}), Clade({'C'}))): 0.0,
+            PCSS(Subsplit(Clade({'A', 'B'}), Clade({'C', 'D'})), Subsplit(Clade({'C'}), Clade({'D'}))): 0.0
+        }
+
+        scd_big = SCDSet(pcss_conditional_probs_big)
+        scd_ref1 = SCDSet(pcss_conditional_probs1)
+        scd_ref2 = SCDSet(pcss_conditional_probs2)
+        result = scd_big.restricted_kl_gradient_multi([scd_ref1, scd_ref2])
+        for parent_clade in result:
+            self.assertAlmostEqual(result[parent_clade], answer[parent_clade])
+
 
 
 

@@ -59,6 +59,58 @@ class TestBrute(unittest.TestCase):
         self.assertLess(abs_flags, 3)
         self.assertLess(rel_flags, 20)
 
+    def test_subsplit_derivative_in_class(self):
+        scd = SCDSet.random("ABCDE")
+        delta = 0.00001
+
+        theo_res_simple = dict()
+        est_res_simple = dict()
+        uncond_for = scd.subsplit_probabilities()
+        transit_for = scd.transit_probabilities()
+        for wrt_for in scd.iter_pcss():
+            if wrt_for not in theo_res_simple:
+                theo_res_simple[wrt_for] = dict()
+            if wrt_for not in est_res_simple:
+                est_res_simple[wrt_for] = dict()
+            scd2_for = scd.copy()
+            scd2_for.add_log(wrt_for, delta)
+            scd2_for.normalize(wrt_for.parent_clade())
+            uncond2_for = scd2_for.subsplit_probabilities()
+            for prob_of_for in scd.iter_subsplits(include_root=True):
+                theo = scd.subsplit_derivative(
+                    prob_of=prob_of_for, wrt=wrt_for, transit=transit_for
+                )
+                theo_res_simple[wrt_for][prob_of_for] = theo
+                est = scd_estimate_subsplit_derivative(
+                    prob_of=prob_of_for, wrt=wrt_for, scd=scd, delta=delta,
+                    uncond=uncond_for, uncond2=uncond2_for
+                )
+                est_res_simple[wrt_for][prob_of_for] = est
+
+        abs_flags = 0
+        rel_flags = 0
+        for wrt_for in theo_res_simple:
+            for prob_of_for in theo_res_simple[wrt_for]:
+                theo = theo_res_simple[wrt_for][prob_of_for]
+                est = est_res_simple[wrt_for][prob_of_for]
+                if abs(est) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                        # print(f"{prob_of_for} wrt {wrt_for}: est zero, theo={theo:10.6g}")
+                elif abs(theo) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                        # print(f"{prob_of_for} wrt {wrt_for}: theo zero, est={est:10.6g}")
+                else:
+                    rel_diff = abs(theo - est) / abs(est)
+                    if rel_diff > 5e-5:
+                        rel_flags += 1
+                        # print(f"{prob_of_for} wrt {wrt_for}: rel diff={rel_diff:10.6g}")
+        self.assertLess(abs_flags, 3)
+        self.assertLess(rel_flags, 20)
+
     def test_subsplit_to_subsplit_derivative(self):
         scd = SCDSet.random("ABCDE")
         delta = 0.00001
@@ -79,6 +131,55 @@ class TestBrute(unittest.TestCase):
                                                     scd.iter_subsplits(include_root=True)):
                 theo = scd_subsplit_to_subsplit_cond_derivative(
                     prob_of=prob_of_for, cond_on=cond_on_for, wrt=wrt_for, scd=scd, transit=transit_for
+                )
+                theo_res_simple[wrt_for][(cond_on_for, prob_of_for)] = theo
+                est = scd_estimate_subsplit_to_subsplit_cond_derivative(
+                    prob_of=prob_of_for, cond_on=cond_on_for, wrt=wrt_for, scd=scd, delta=delta,
+                    transit=transit_for, transit2=transit2_for
+                )
+                est_res_simple[wrt_for][(cond_on_for, prob_of_for)] = est
+
+        abs_flags = 0
+        rel_flags = 0
+        for wrt_for in theo_res_simple:
+            for (cond_on_for, prob_of_for) in theo_res_simple[wrt_for]:
+                theo = theo_res_simple[wrt_for][(cond_on_for, prob_of_for)]
+                est = est_res_simple[wrt_for][(cond_on_for, prob_of_for)]
+                if abs(est) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                elif abs(theo) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                else:
+                    rel_diff = abs(theo - est) / abs(est)
+                    if rel_diff > 5e-5:
+                        rel_flags += 1
+        self.assertLess(abs_flags, 3)
+        self.assertLess(rel_flags, 20)
+
+    def test_subsplit_to_subsplit_derivative_in_class(self):
+        scd = SCDSet.random("ABCDE")
+        delta = 0.00001
+
+        theo_res_simple = dict()
+        est_res_simple = dict()
+        transit_for = scd.transit_probabilities()
+        for wrt_for in scd.iter_pcss():
+            if wrt_for not in theo_res_simple:
+                theo_res_simple[wrt_for] = dict()
+            if wrt_for not in est_res_simple:
+                est_res_simple[wrt_for] = dict()
+            scd2_for = scd.copy()
+            scd2_for.add_log(wrt_for, delta)
+            scd2_for.normalize(wrt_for.parent_clade())
+            transit2_for = scd2_for.transit_probabilities()
+            for cond_on_for, prob_of_for in product(scd.iter_subsplits(include_root=True),
+                                                    scd.iter_subsplits(include_root=True)):
+                theo = scd.subsplit_to_subsplit_cond_derivative(
+                    prob_of=prob_of_for, cond_on=cond_on_for, wrt=wrt_for, transit=transit_for
                 )
                 theo_res_simple[wrt_for][(cond_on_for, prob_of_for)] = theo
                 est = scd_estimate_subsplit_to_subsplit_cond_derivative(
@@ -157,6 +258,55 @@ class TestBrute(unittest.TestCase):
         self.assertLess(abs_flags, 3)
         self.assertLess(rel_flags, 20)
 
+    def test_subsplit_via_subsplit_derivative_in_class(self):
+        scd = SCDSet.random("ABCDE")
+        delta = 0.00001
+
+        theo_res_simple = dict()
+        est_res_simple = dict()
+        transit_for = scd.transit_probabilities()
+        for wrt_for in scd.iter_pcss():
+            if wrt_for not in theo_res_simple:
+                theo_res_simple[wrt_for] = dict()
+            if wrt_for not in est_res_simple:
+                est_res_simple[wrt_for] = dict()
+            scd2_for = scd.copy()
+            scd2_for.add_log(wrt_for, delta)
+            scd2_for.normalize(wrt_for.parent_clade())
+            transit2_for = scd2_for.transit_probabilities()
+            for via_for, prob_of_for in product(scd.iter_subsplits(include_root=True),
+                                                scd.iter_subsplits(include_root=True)):
+                theo = scd.subsplit_via_subsplit_derivative(
+                    prob_of=prob_of_for, via=via_for, wrt=wrt_for, transit=transit_for
+                )
+                theo_res_simple[wrt_for][(via_for, prob_of_for)] = theo
+                est = scd_estimate_subsplit_via_subsplit_derivative(
+                    prob_of=prob_of_for, via=via_for, wrt=wrt_for, scd=scd, delta=delta,
+                    transit=transit_for, transit2=transit2_for
+                )
+                est_res_simple[wrt_for][(via_for, prob_of_for)] = est
+
+        abs_flags = 0
+        rel_flags = 0
+        for wrt_for in theo_res_simple:
+            for (via_for, prob_of_for) in theo_res_simple[wrt_for]:
+                theo = theo_res_simple[wrt_for][(via_for, prob_of_for)]
+                est = est_res_simple[wrt_for][(via_for, prob_of_for)]
+                if abs(est) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                elif abs(theo) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                else:
+                    rel_diff = abs(theo - est) / abs(est)
+                    if rel_diff > 5e-5:
+                        rel_flags += 1
+        self.assertLess(abs_flags, 3)
+        self.assertLess(rel_flags, 20)
+
     def test_restricted_subsplit_derivative(self):
         scd = SCDSet.random("ABCDE")
         restriction = Clade("ABCD")
@@ -181,6 +331,60 @@ class TestBrute(unittest.TestCase):
             for prob_of_for in scd_res.iter_subsplits(include_root=True):
                 theo = scd_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of_for, wrt=wrt_for,
                                                           scd=scd, transit=transit)
+                theo_res[wrt_for][prob_of_for] = theo
+                est = scd_estimate_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of_for,
+                                                                  wrt=wrt_for, scd=scd, delta=delta, uncond=uncond,
+                                                                  uncond2=uncond2)
+                est_res[wrt_for][prob_of_for] = est
+
+        abs_flags = 0
+        rel_flags = 0
+        for wrt_for in theo_res:
+            for prob_of_for in theo_res[wrt_for]:
+                theo = theo_res[wrt_for][prob_of_for]
+                est = est_res[wrt_for][prob_of_for]
+                if abs(est) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                        # print(f"{prob_of_for} wrt {wrt_for}: est zero, theo={theo:10.6g}")
+                elif abs(theo) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                        # print(f"{prob_of_for} wrt {wrt_for}: theo zero, est={est:10.6g}")
+                else:
+                    rel_diff = abs(theo - est) / abs(est)
+                    if rel_diff > 5e-5:
+                        rel_flags += 1
+                        # print(f"{prob_of_for} wrt {wrt_for}: rel diff={rel_diff:10.6g}")
+        self.assertLess(abs_flags, 3)
+        self.assertLess(rel_flags, 20)
+
+    def test_restricted_subsplit_derivative_in_class(self):
+        scd = SCDSet.random("ABCDE")
+        restriction = Clade("ABCD")
+        delta = 0.00001
+
+        theo_res = dict()
+        est_res = dict()
+        scd_res = scd.restrict(restriction)
+        uncond = scd_res.subsplit_probabilities()
+        transit = scd.transit_probabilities()
+        for wrt_for in scd.iter_pcss():
+            if wrt_for not in theo_res:
+                theo_res[wrt_for] = dict()
+            if wrt_for not in est_res:
+                est_res[wrt_for] = dict()
+            parent = wrt_for.parent_clade()
+            scd2 = scd.copy()
+            scd2.add_log(wrt_for, delta)
+            scd2.normalize(parent)
+            scd2_res = scd2.restrict(restriction)
+            uncond2 = scd2_res.subsplit_probabilities()
+            for prob_of_for in scd_res.iter_subsplits(include_root=True):
+                theo = scd.restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of_for, wrt=wrt_for,
+                                                          transit=transit)
                 theo_res[wrt_for][prob_of_for] = theo
                 est = scd_estimate_restricted_subsplit_derivative(restriction=restriction, prob_of=prob_of_for,
                                                                   wrt=wrt_for, scd=scd, delta=delta, uncond=uncond,
@@ -265,6 +469,60 @@ class TestBrute(unittest.TestCase):
         self.assertLess(abs_flags, 3)
         self.assertLess(rel_flags, 20)
 
+    def test_restricted_pcss_derivative_in_class(self):
+        scd = SCDSet.random("ABCDE")
+        restriction = Clade("ABCD")
+        delta = 0.00001
+
+        theo_res = dict()
+        est_res = dict()
+        scd_res = scd.restrict(restriction)
+        res_pcss_probs = scd_res.pcss_probabilities()
+        transit = scd.transit_probabilities()
+        for wrt_for in scd.iter_pcss():
+            if wrt_for not in theo_res:
+                theo_res[wrt_for] = dict()
+            if wrt_for not in est_res:
+                est_res[wrt_for] = dict()
+            parent = wrt_for.parent_clade()
+            scd2 = scd.copy()
+            scd2.add_log(wrt_for, delta)
+            scd2.normalize(parent)
+            scd2_res = scd2.restrict(restriction)
+            res_pcss_probs2 = scd2_res.pcss_probabilities()
+            for prob_of_for in scd_res.iter_pcss():
+                theo = scd.restricted_pcss_derivative(restriction=restriction, prob_of=prob_of_for, wrt=wrt_for,
+                                                      transit=transit)
+                theo_res[wrt_for][prob_of_for] = theo
+                est = scd_estimate_restricted_pcss_derivative(restriction=restriction, prob_of=prob_of_for, wrt=wrt_for,
+                                                              scd=scd, delta=delta, res_pcss_probs=res_pcss_probs,
+                                                              res_pcss_probs2=res_pcss_probs2)
+                est_res[wrt_for][prob_of_for] = est
+
+        abs_flags = 0
+        rel_flags = 0
+        for wrt_for in theo_res:
+            for prob_of_for in theo_res[wrt_for]:
+                theo = theo_res[wrt_for][prob_of_for]
+                est = est_res[wrt_for][prob_of_for]
+                if abs(est) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                        # print(f"{prob_of_for} wrt {wrt_for}: est zero, theo={theo:10.6g}")
+                elif abs(theo) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                        # print(f"{prob_of_for} wrt {wrt_for}: theo zero, est={est:10.6g}")
+                else:
+                    rel_diff = abs(theo - est) / abs(est)
+                    if rel_diff > 5e-5:
+                        rel_flags += 1
+                        # print(f"{prob_of_for} wrt {wrt_for}: rel diff={rel_diff:10.6g}")
+        self.assertLess(abs_flags, 3)
+        self.assertLess(rel_flags, 20)
+
     def test_restricted_conditional_derivative(self):
         scd = SCDSet.random("ABCDE")
         restriction = Clade("ABCD")
@@ -290,6 +548,59 @@ class TestBrute(unittest.TestCase):
                 theo = scd_restricted_conditional_derivative(restriction=restriction, prob_of=prob_of_for, wrt=wrt_for,
                                                              scd=scd, transit=transit,
                                                              restricted_scd=scd_res,
+                                                             restricted_subsplit_probs=restricted_subsplit_probs,
+                                                             restricted_pcss_probs=restricted_pcss_probs)
+                theo_res[wrt_for][prob_of_for] = theo
+                est = scd_estimate_restricted_conditional_derivative(restriction=restriction, prob_of=prob_of_for,
+                                                                     wrt=wrt_for, scd=scd, delta=delta,
+                                                                     scd_res=scd_res, scd2_res=scd2_res)
+                est_res[wrt_for][prob_of_for] = est
+
+        abs_flags = 0
+        rel_flags = 0
+        for wrt_for in theo_res:
+            for prob_of_for in theo_res[wrt_for]:
+                theo = theo_res[wrt_for][prob_of_for]
+                est = est_res[wrt_for][prob_of_for]
+                if abs(est) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                elif abs(theo) < 1e-12:
+                    abs_diff = abs(theo - est)
+                    if abs_diff > 1e-8:
+                        abs_flags += 1
+                else:
+                    rel_diff = abs(theo - est) / abs(est)
+                    if rel_diff > 5e-5:
+                        rel_flags += 1
+        self.assertLess(abs_flags, 3)
+        self.assertLess(rel_flags, 20)
+
+    def test_restricted_conditional_derivative_in_class(self):
+        scd = SCDSet.random("ABCDE")
+        restriction = Clade("ABCD")
+        delta = 0.00001
+
+        theo_res = dict()
+        est_res = dict()
+        scd_res = scd.restrict(restriction)
+        transit = scd.transit_probabilities()
+        restricted_subsplit_probs = scd_res.subsplit_probabilities()
+        restricted_pcss_probs = scd_res.pcss_probabilities()
+        for wrt_for in scd.iter_pcss():
+            if wrt_for not in theo_res:
+                theo_res[wrt_for] = dict()
+            if wrt_for not in est_res:
+                est_res[wrt_for] = dict()
+            parent = wrt_for.parent_clade()
+            scd2 = scd.copy()
+            scd2.add_log(wrt_for, delta)
+            scd2.normalize(parent)
+            scd2_res = scd2.restrict(restriction)
+            for prob_of_for in scd_res.iter_pcss():
+                theo = scd.restricted_conditional_derivative(restriction=restriction, prob_of=prob_of_for, wrt=wrt_for,
+                                                             transit=transit, restricted_scd=scd_res,
                                                              restricted_subsplit_probs=restricted_subsplit_probs,
                                                              restricted_pcss_probs=restricted_pcss_probs)
                 theo_res[wrt_for][prob_of_for] = theo
@@ -363,6 +674,50 @@ class TestBrute(unittest.TestCase):
         self.assertLess(abs_flags, 3)
         self.assertLess(rel_flags, 20)
 
+    def test_restricted_kl_derivative_in_class(self):
+        scd = SCDSet.random("ABCDE")
+        restriction = Clade("ABCD")
+        other = SCDSet.random(restriction)
+        delta = 0.00001
+
+        theo_res = dict()
+        est_res = dict()
+        scd_res = scd.restrict(restriction)
+        transit = scd.transit_probabilities()
+        other_pcss_probs = other.pcss_probabilities()
+        for wrt_for in scd.iter_pcss():
+            parent = wrt_for.parent_clade()
+            scd2 = scd.copy()
+            scd2.add_log(wrt_for, delta)
+            scd2.normalize(parent)
+            scd2_res = scd2.restrict(restriction)
+            theo = scd.restricted_kl_derivative(wrt=wrt_for, other=other, transit=transit, restricted_scd=scd_res,
+                                                other_pcss_probs=other_pcss_probs)
+            theo_res[wrt_for] = theo
+            est = scd_estimate_restricted_kl_derivative(wrt=wrt_for, scd=scd, other=other, delta=delta,
+                                                        scd_res=scd_res, scd2_res=scd2_res)
+            est_res[wrt_for] = est
+
+        abs_flags = 0
+        rel_flags = 0
+        for wrt_for in theo_res:
+            theo = theo_res[wrt_for]
+            est = est_res[wrt_for]
+            if abs(est) < 1e-12:
+                abs_diff = abs(theo - est)
+                if abs_diff > 1e-8:
+                    abs_flags += 1
+            elif abs(theo) < 1e-12:
+                abs_diff = abs(theo - est)
+                if abs_diff > 1e-8:
+                    abs_flags += 1
+            else:
+                rel_diff = abs(theo - est) / abs(est)
+                if rel_diff > 5e-5:
+                    rel_flags += 1
+        self.assertLess(abs_flags, 3)
+        self.assertLess(rel_flags, 20)
+
     def test_restricted_kl_gradient(self):
         scd = SCDSet.random("ABCDE")
         restriction = Clade("ABCD")
@@ -396,6 +751,30 @@ class TestBrute(unittest.TestCase):
         other_pcss_probs = other.pcss_probabilities()
 
         kl_grad = scd_restricted_kl_gradient2(scd=scd, other=other, transit=transit, restricted_self=scd_res)
+        brute_grad = brute_kl_gradient(scd=scd, other=other, scd_res=scd_res, transit=transit,
+                                       other_pcss_probs=other_pcss_probs)
+
+        n_flags = 0
+        for wrt_for in brute_grad:
+            theo = brute_grad[wrt_for]
+            if abs(theo) < 1e-16:
+                theo = 0.0
+            grad = kl_grad[wrt_for]
+            if abs(grad) < 1e-16:
+                grad = 0.0
+            if abs(theo - grad) > 1e-12:
+                n_flags += 1
+        self.assertLess(n_flags, 5)
+
+    def test_restricted_kl_gradient_in_class(self):
+        scd = SCDSet.random("ABCDE")
+        restriction = Clade("ABCD")
+        scd_res = scd.restrict(restriction)
+        transit = scd.transit_probabilities()
+        other = SCDSet.random(restriction)
+        other_pcss_probs = other.pcss_probabilities()
+
+        kl_grad = scd.restricted_kl_gradient(other=other, transit=transit, restricted_self=scd_res)
         brute_grad = brute_kl_gradient(scd=scd, other=other, scd_res=scd_res, transit=transit,
                                        other_pcss_probs=other_pcss_probs)
 
@@ -882,8 +1261,8 @@ class TestDecomposition(unittest.TestCase):
 class TestSpeed(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.scd = SCDSet.random("ABCDE")
-        cls.restriction = Clade("ABCD")
+        cls.scd = SCDSet.random("ABCDEF")
+        cls.restriction = Clade("ABCDE")
         cls.other = SCDSet.random(cls.restriction)
         cls.scd_res = cls.scd.restrict(cls.restriction)
         cls.restricted_subsplit_probs = cls.scd_res.subsplit_probabilities()
@@ -898,22 +1277,22 @@ class TestSpeed(unittest.TestCase):
         elapsed = time.time() - self._started_at
         print(f'{self.id()} ({round(elapsed, 2)}s)')
 
-    def test_brute_kl_gradient_speed_headstart(self):
-        brute_kl_gradient(scd=self.scd, other=self.other,
-                          scd_res=self.scd_res, transit=self.transit,
-                          other_pcss_probs=self.other_pcss_probs)
+    # def test_brute_kl_gradient_speed_headstart(self):
+    #     brute_kl_gradient(scd=self.scd, other=self.other,
+    #                       scd_res=self.scd_res, transit=self.transit,
+    #                       other_pcss_probs=self.other_pcss_probs)
+    #
+    # def test_brute_kl_gradient_speed(self):
+    #     brute_kl_gradient(scd=self.scd, other=self.other)
 
-    def test_brute_kl_gradient_speed(self):
-        brute_kl_gradient(scd=self.scd, other=self.other)
-
-    def test_kl_gradient_speed_headstart(self):
-        scd_restricted_kl_gradient(scd=self.scd, other=self.other, transit=self.transit,
-                                   restricted_self=self.scd_res,
-                                   restricted_subsplit_probs=self.restricted_subsplit_probs,
-                                   other_subsplit_probs=self.other_subsplit_probs)
-
-    def test_kl_gradient_speed(self):
-        scd_restricted_kl_gradient(scd=self.scd, other=self.other)
+    # def test_kl_gradient_speed_headstart(self):
+    #     scd_restricted_kl_gradient(scd=self.scd, other=self.other, transit=self.transit,
+    #                                restricted_self=self.scd_res,
+    #                                restricted_subsplit_probs=self.restricted_subsplit_probs,
+    #                                other_subsplit_probs=self.other_subsplit_probs)
+    #
+    # def test_kl_gradient_speed(self):
+    #     scd_restricted_kl_gradient(scd=self.scd, other=self.other)
 
     def test_kl_gradient2_speed_headstart(self):
         scd_restricted_kl_gradient2(scd=self.scd, other=self.other, transit=self.transit,
@@ -923,6 +1302,14 @@ class TestSpeed(unittest.TestCase):
 
     def test_kl_gradient2_speed(self):
         scd_restricted_kl_gradient2(scd=self.scd, other=self.other)
+
+    def test_kl_gradient_in_class_speed_headstart(self):
+        self.scd.restricted_kl_gradient(other=self.other, transit=self.transit, restricted_self=self.scd_res,
+                                   restricted_subsplit_probs=self.restricted_subsplit_probs,
+                                   other_subsplit_probs=self.other_subsplit_probs)
+
+    def test_kl_gradient_in_class_speed(self):
+        self.scd.restricted_kl_gradient(other=self.other)
 
 
 if __name__ == '__main__':
