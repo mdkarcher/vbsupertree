@@ -12,6 +12,7 @@ from typing import List, Sequence
 
 import numpy as np
 import ete3
+import bitarray as ba
 
 
 class MyTree:
@@ -327,6 +328,9 @@ class Clade(frozenset):
     def __sub__(self, other):
         return Clade(super().__sub__(other))
 
+    def to_bitarray(self, bit_map):
+        return ba.bitarray(item in self for item in bit_map)
+
 
 class Subsplit:
     def __init__(self, clade1=None, clade2=None):
@@ -398,6 +402,13 @@ class Subsplit:
     def restrict(self, taxon_set):
         taxon_set = set(taxon_set)
         return Subsplit(self.clade1 & taxon_set, self.clade2 & taxon_set)
+
+    def to_bitarray(self, bit_map, swap=False):
+        if swap:
+            result = self.clade2.to_bitarray(bit_map) + self.clade1.to_bitarray(bit_map)
+        else:
+            result = self.clade1.to_bitarray(bit_map) + self.clade2.to_bitarray(bit_map)
+        return result
 
     def union_cis(self, other):
         return Subsplit(self.clade1 | other.clade1, self.clade2 | other.clade2)
@@ -527,6 +538,9 @@ class SubsplitClade:
         restricted_clade = Clade(self.clade & taxon_set)
         return SubsplitClade(subsplit=restricted_subsplit, clade=restricted_clade)
 
+    def to_bitarray(self, bit_map):
+        return self.subsplit.to_bitarray(bit_map=bit_map, swap=(self.clade == self.subsplit.clade1))
+
 
 class PCSP:
     def __init__(self, parent, child):
@@ -571,6 +585,11 @@ class PCSP:
         restricted_parent = self.parent.restrict(taxon_set)
         restricted_child = self.child.restrict(taxon_set)
         return PCSP(restricted_parent, restricted_child)
+
+    def to_bitarray(self, bit_map):
+        child_ba = min(self.child.clade1.to_bitarray(bit_map),
+                       self.child.clade1.to_bitarray(bit_map))
+        return self.parent_clade().to_bitarray(bit_map) + child_ba
 
     @staticmethod
     def from_node(node):
@@ -1673,6 +1692,21 @@ class SBN:
         for parent in self.data:
             if not self.data[parent].check():
                 result.add(parent)
+        return result
+
+    def bitarray_summary(self, bit_map=None):
+        if bit_map is None:
+            bit_map = sorted(self.root_clade())
+        n = len(bit_map)
+        result = dict()
+        for pcsp in self.iter_pcsp():
+            assert pcsp not in result, "Visited same PCSP more than once."
+            bits = pcsp.to_bitarray(bit_map)
+            if pcsp.parent == self.root_subsplit():
+                key = bits[2*n:].to01()
+            else:
+                key = "|".join(bits[i*n:(i+1)*n].to01() for i in range(3))
+            result[key] = self.get(pcsp)
         return result
 
     def check(self):

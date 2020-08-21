@@ -424,6 +424,39 @@ class TestSBN(unittest.TestCase):
         for parent_clade in result:
             self.assertAlmostEqual(result[parent_clade], answer[parent_clade])
 
+    def test_sbn_training(self):
+        tree_newicks = ['(((A:1,D:1)1:1,(B:1,C:1)1:1)1:1,E:1);',
+                        '(((A:1,B:1)1:1,(D:1,E:1)1:1)1:1,C:1);',
+                        '((A:1,((B:1,D:1)1:1,E:1)1:1)1:1,C:1);',
+                        '(((A:1,(B:1,D:1)1:1)1:1,C:1)1:1,E:1);',
+                        '((A:1,E:1)1:1,(B:1,(C:1,D:1)1:1)1:1);']
+        trees = [MyTree(tree_newick) for tree_newick in tree_newicks]
+        tree_dist = TreeDistribution.from_list(trees)
+        sbn = SBN.from_tree_distribution(tree_dist)
+        expected_bitarray_summary = {
+            '11110': 0.4,
+            '11011': 0.4,
+            '10001': 0.2,
+            '00001|11110|10010': 0.5,
+            '00001|11110|11010': 0.5,
+            '01100|10010|10000': 1.0,
+            '10010|01100|01000': 1.0,
+            '00100|11011|11000': 0.5,
+            '00100|11011|10000': 0.5,
+            '00011|11000|10000': 1.0,
+            '11000|00011|00010': 1.0,
+            '10000|01011|01010': 1.0,
+            '00001|01010|01000': 1.0,
+            '00100|11010|10000': 1.0,
+            '10000|01010|01000': 1.0,
+            '01110|10001|10000': 1.0,
+            '10001|01110|01000': 1.0,
+            '01000|00110|00100': 1.0
+        }
+        for key, value in sbn.bitarray_summary().items():
+            expected_value = expected_bitarray_summary.get(key)
+            self.assertAlmostEqual(value, expected_value)
+
 
 if __name__ == '__main__':
     unittest.main()
