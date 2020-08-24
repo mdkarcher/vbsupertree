@@ -588,7 +588,7 @@ class PCSP:
 
     def to_bitarray(self, bit_map):
         child_ba = min(self.child.clade1.to_bitarray(bit_map),
-                       self.child.clade1.to_bitarray(bit_map))
+                       self.child.clade2.to_bitarray(bit_map))
         return self.parent_clade().to_bitarray(bit_map) + child_ba
 
     @staticmethod
