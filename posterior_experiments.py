@@ -466,3 +466,23 @@ ax_true_kl.plot(true_kl_list)
 plt.tight_layout()
 plt.savefig("figures/vbsupertree_vert.pdf", format="pdf")
 
+# formatting some trees for Erick
+
+from vbsupertree import *
+
+all_trees = parse_beast_nexus("data/dendropy_sims/tc20_sl200_01_01.trees")
+trees_subset = all_trees[-100:]
+tree_strs = [tree.tree.write(format=9)+'\n' for tree in trees_subset]
+with open("data/dendropy_sims/Erick_tc20_sl200.nwk", 'w') as f:
+    f.writelines(tree_strs)
+
+tree_dist = TreeDistribution.from_list(trees_subset)
+sbn = SBN.from_tree_distribution(tree_dist)
+bit_map = sorted(sbn.root_clade())
+bit_summary = sbn.bitarray_summary(bit_map)
+
+csv_strs = [f"{bit_str}, {value}\n" for bit_str, value in bit_summary.items()]
+with open("data/dendropy_sims/Erick_tc20_sl200_sbn.csv", 'w') as f:
+    f.writelines(csv_strs)
+
+
