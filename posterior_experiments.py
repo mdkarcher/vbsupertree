@@ -473,16 +473,34 @@ from vbsupertree import *
 all_trees = parse_beast_nexus("data/dendropy_sims/tc20_sl200_01_01.trees")
 trees_subset = all_trees[-100:]
 tree_strs = [tree.tree.write(format=9)+'\n' for tree in trees_subset]
-with open("data/dendropy_sims/Erick_tc20_sl200.nwk", 'w') as f:
-    f.writelines(tree_strs)
+# with open("data/dendropy_sims/Erick_tc20_sl200.nwk", 'w') as f:
+#     f.writelines(tree_strs)
 
 tree_dist = TreeDistribution.from_list(trees_subset)
 sbn = SBN.from_tree_distribution(tree_dist)
-bit_map = sorted(sbn.root_clade())
+# bit_map = sorted(sbn.root_clade())
+bit_map = ["outgroup", "z16", "z2", "z8", "z13", "z1", "z9", "z7", "z5",
+           "z17", "z18", "z0", "z6", "z10", "z3", "z4", "z11", "z12",
+           "z14", "z15"]
 bit_summary = sbn.bitarray_summary(bit_map)
 
 csv_strs = [f"{bit_str}, {value}\n" for bit_str, value in bit_summary.items()]
 with open("data/dendropy_sims/Erick_tc20_sl200_sbn.csv", 'w') as f:
     f.writelines(csv_strs)
 
+
+def read_bitarray_csv(filename):
+    result = dict()
+    with open(filename) as f:
+        for line in f.readlines():
+            bits, value = line.split(",", maxsplit=1)
+            result[bits] = float(value)
+    return result
+
+
+bitarray_csv = read_bitarray_csv("data/dendropy_sims/Erick_tc20_sl200_sbn_from_Erick.csv")
+
+for key, value in bit_summary.items():
+    compare_value = bitarray_csv[key]
+    print(f"{key}: |{value:0.6g} - {compare_value:0.6g}| = {abs(value - compare_value):0.6f}")
 
