@@ -504,3 +504,175 @@ for key, value in bit_summary.items():
     compare_value = bitarray_csv[key]
     print(f"{key}: |{value:0.6g} - {compare_value:0.6g}| = {abs(value - compare_value):0.6f}")
 
+# dendropy simulation experiments (40 tips)
+
+from vbsupertree import *
+from dendropy_code import *
+
+simulate(taxon_count=40, seq_len=500, prefix="data/dendropy_sims/tc40/tc40_sl500_02")
+tree = MyTree("data/dendropy_sims/tc40/tc40_sl500_02.nwk")
+print(tree)
+tree.tree.show()
+
+dp_tree = dp.Tree.get(path="data/dendropy_sims/tc40/tc40_sl500_02.nwk", schema="newick")
+dp_tree.print_plot()
+dp_tree.calc_node_root_distances()
+
+# interesting tips to remove 01:
+# z0 (made), z26; z23, z28; z1, z29, z35; z11, z36;
+
+# interesting tips to remove 02:
+# z0 z2 z3 z10
+
+# Run BEAUTi/BEAST here
+
+true_tree = MyTree("data/dendropy_sims/tc40/tc40_sl500_02.nwk")
+all_trees = parse_beast_nexus("data/dendropy_sims/tc40/tc40_sl500_02_01.trees")
+tree_dist = TreeDistribution.from_list(all_trees[5001:])
+sbn = SCDSet.from_tree_distribution(tree_dist)
+support = sbn.support()
+
+tree_dist[true_tree]
+len(tree_dist)
+sorted_tree_dist = sorted(tree_dist.items(), key=lambda x: -x[1])
+for i, (tree, prob) in enumerate(sorted_tree_dist):
+    print(f"{i}: {prob:.5g}")
+    if tree == true_tree:
+        print("Note: matches true tree.")
+
+print(sorted_tree_dist[0][0])
+print(true_tree)
+true_tree.tree.show()
+
+
+sorted_tree_dist[0][0].to_clade_set() - true_tree.to_clade_set()
+true_tree.to_clade_set() - sorted_tree_dist[0][0].to_clade_set()
+
+sorted_tree_dist[0][0].to_support().to_set() - true_tree.to_support().to_set()
+true_tree.to_support().to_set() - sorted_tree_dist[0][0].to_support().to_set()
+
+# by hand code
+true_tree = MyTree("data/dendropy_sims/tc40/tc40_sl500_02.nwk")
+all_trees = parse_beast_nexus("data/dendropy_sims/tc40/tc40_sl500_02_01.trees")
+all_trees_minus_z0 = parse_beast_nexus("data/dendropy_sims/tc40/tc40_sl500_02_minus_z0_01.trees")
+all_trees_minus_z2 = parse_beast_nexus("data/dendropy_sims/tc40/tc40_sl500_02_minus_z2_01.trees")
+all_trees_minus_z3 = parse_beast_nexus("data/dendropy_sims/tc40/tc40_sl500_02_minus_z3_01.trees")
+all_trees_minus_z10 = parse_beast_nexus("data/dendropy_sims/tc40/tc40_sl500_02_minus_z10_01.trees")
+tree_dist = TreeDistribution.from_list(all_trees[5001:])
+tree_dist_minus_z0 = TreeDistribution.from_list(all_trees_minus_z0[5001:])
+tree_dist_minus_z2 = TreeDistribution.from_list(all_trees_minus_z2[5001:])
+tree_dist_minus_z3 = TreeDistribution.from_list(all_trees_minus_z3[5001:])
+tree_dist_minus_z10 = TreeDistribution.from_list(all_trees_minus_z10[5001:])
+tree_dist_dust = tree_dist.dust(0.002)
+tree_dist_minus_z0_dust = tree_dist_minus_z0.dust(0.002)
+tree_dist_minus_z2_dust = tree_dist_minus_z2.dust(0.002)
+tree_dist_minus_z3_dust = tree_dist_minus_z3.dust(0.002)
+tree_dist_minus_z10_dust = tree_dist_minus_z10.dust(0.002)
+tree_dist_dust.normalize()
+tree_dist_minus_z0_dust.normalize()
+tree_dist_minus_z2_dust.normalize()
+tree_dist_minus_z3_dust.normalize()
+tree_dist_minus_z10_dust.normalize()
+sbn = SBN.from_tree_distribution(tree_dist_dust)
+sbn_minus_z0 = SBN.from_tree_distribution(tree_dist_minus_z0_dust)
+sbn_minus_z2 = SBN.from_tree_distribution(tree_dist_minus_z2_dust)
+sbn_minus_z3 = SBN.from_tree_distribution(tree_dist_minus_z3_dust)
+sbn_minus_z10 = SBN.from_tree_distribution(tree_dist_minus_z10_dust)
+support = sbn.support()
+support_minus_z0 = sbn_minus_z0.support()
+support_minus_z2 = sbn_minus_z2.support()
+support_minus_z3 = sbn_minus_z3.support()
+support_minus_z10 = sbn_minus_z10.support()
+len(support), len(support_minus_z0), len(support_minus_z2), len(support_minus_z3), len(support_minus_z10)
+
+# looped code
+base_name = "data/dendropy_sims/tc40/tc40_sl500_02"
+subrun = "01"
+scenario_list = [
+    ("all", ""),
+    ("z0", "_minus_z0"),
+    ("z2", "_minus_z2"),
+    ("z3", "_minus_z3"),
+    ("z10", "_minus_z10"),
+]
+tree_dists = dict()
+sbns = dict()
+supports = dict()
+restrictions = dict()
+pcsp_probabilities = dict()
+for key, infix in scenario_list:
+    print(f"Starting scenario '{key}'...")
+    all_trees = parse_beast_nexus(f"{base_name}{infix}_{subrun}.trees")
+    print("  Trees parsed")
+    n_all = len(all_trees)
+    tree_dist_raw = TreeDistribution.from_list(all_trees[(n_all//2 + 1):])
+    print("  Tree distribution created")
+    tree_dist = tree_dist_raw.dust(0.002)
+    tree_dist.normalize()
+    tree_dists[key] = tree_dist
+    print("  Tree distribution dusted")
+    sbn = SBN.from_tree_distribution(tree_dist)
+    sbns[key] = sbn
+    print("  SBN trained")
+    support = sbn.support()
+    supports[key] = support
+    print("  PCSP support summarized")
+    restriction = sbn.root_clade()
+    restrictions[key] = restriction
+    pcsp_probability = sbn.pcsp_probabilities()
+    pcsp_probabilities[key] = pcsp_probability
+
+
+# by hand interlude
+mutual_supports = dict()
+mutual_supports[("z0", "z2")] = supports["z0"].mutualize(supports["z2"])
+mutual_supports[("z0", "z2")].is_complete()
+
+uncovered_supports = dict()
+uncovered_supports[("z0", "z2")] = (
+    supports["z0"].to_set() - mutual_supports[("z0", "z2")].restrict(restrictions["z0"]).to_set(),
+    supports["z2"].to_set() - mutual_supports[("z0", "z2")].restrict(restrictions["z2"]).to_set()
+)
+
+pcsp_probabilities["all"] = sbns["all"].pcsp_probabilities()
+pcsp_probabilities["z0"] = sbns["z0"].pcsp_probabilities()
+pcsp_probabilities["z2"] = sbns["z2"].pcsp_probabilities()
+total_uncovered_probabilities = dict()
+total_uncovered_probabilities[("z0", "z2")] = (
+    sum(pcsp_probabilities["z0"][pcsp] for pcsp in uncovered_supports[("z0", "z2")][0]),
+    sum(pcsp_probabilities["z2"][pcsp] for pcsp in uncovered_supports[("z0", "z2")][1])
+)
+total_uncovered_probabilities[("z0", "z2")]
+
+trimmed_sbns = dict()
+a = sbns["z0"].copy()
+a.remove_many(uncovered_supports[("z0", "z2")][0])
+a = a.prune()
+a.normalize()
+b = sbns["z2"].copy()
+b.remove_many(uncovered_supports[("z0", "z2")][1])
+b = b.prune()
+b.normalize()
+trimmed_sbns[("z0", "z2")] = (a, b)
+
+starting_sbns = dict()
+starting_sbns[("z0", "z2")] = SBN.random_from_support(
+    support=mutual_supports[("z0", "z2")],
+    concentration=10
+)
+
+true_sbn_trimmed = dict()
+true_sbn_trim = sbns["all"].copy()
+tst_support = true_sbn_trim.support()
+tst_uncovered = tst_support.to_set() - mutual_supports[("z0", "z2")].to_set()
+sum(pcsp_probabilities["all"][pcsp] for pcsp in tst_uncovered)
+true_sbn_trim.remove_many(tst_uncovered)
+true_sbn_trim = true_sbn_trim.prune()
+true_sbn_trim.normalize()
+true_sbn_trimmed[("z0", "z2")] = true_sbn_trim
+
+supertree_sbn, kl_list, true_kl_list = scd_gradient_descent(
+    starting=starting_sbns[("z0", "z2")], references=[trimmed_sbns[("z0", "z2")][0], trimmed_sbns[("z0", "z2")][1]],
+    starting_gamma=2.0, max_iteration=50, true_reference=true_sbn_trimmed[("z0", "z2")]
+)
+
