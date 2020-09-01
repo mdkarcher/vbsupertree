@@ -457,6 +457,24 @@ class TestSBN(unittest.TestCase):
             expected_value = expected_bitarray_summary.get(key)
             self.assertAlmostEqual(value, expected_value)
 
+    def test_gradient_descent(self):
+        taxon_set = "ABCDEF"
+        restrictions = ["ABCDE", "BCDEF"]
+        true_sbn = SBN.random_with_sparsity(taxon_set=taxon_set, sparsity=0.7)
+        restricted_sbns = [true_sbn.restrict(restriction) for restriction in restrictions]
+        restricted_supports = [restricted_sbn.support() for restricted_sbn in restricted_sbns]
+        mutual_support = restricted_supports[0].mutualize(restricted_supports[1])
+        mutual_support = mutual_support.prune()
+        self.assertTrue(mutual_support.is_complete())
+        starting_sbn = SBN.random_from_support(mutual_support, concentration=10.0)
+        starting_kl = sum(restricted_sbn.kl_divergence(starting_sbn.restrict(restricted_sbn.root_clade()))
+                          for restricted_sbn in restricted_sbns)
+        final_sbn, kl_list, true_kl_list = starting_sbn.gradient_descent(
+            references=restricted_sbns, true_reference=true_sbn, max_iteration=25
+        )
+        self.assertAlmostEqual(starting_kl, kl_list[0])
+        self.assertGreater(starting_kl, kl_list[-1])
+
 
 if __name__ == '__main__':
     unittest.main()
