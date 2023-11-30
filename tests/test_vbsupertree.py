@@ -565,6 +565,67 @@ class TestSBN(unittest.TestCase):
         )
         self.assertAlmostEqual(starting_kl, kl_list[0])
         self.assertGreater(starting_kl, kl_list[-1])
+        print("Loss list:")
+        print(kl_list)
+        print("True KL list:")
+        print(true_kl_list)
+
+    def test_penalize(self):
+        pcsp_conditional_probs = {
+            PCSP(Subsplit("ABCD"), Subsplit("AB", "CD")): 0.4,
+            PCSP(Subsplit("ABCD"), Subsplit("ABC", "D")): 0.6,
+            PCSP(Subsplit("ABC", "D"), Subsplit("AB", "C")): 2 / 3,
+            PCSP(Subsplit("ABC", "D"), Subsplit("A", "BC")): 1 / 3,
+            PCSP(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+            PCSP(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+            PCSP(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+            PCSP(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+        }
+        sbn = SBN(pcsp_conditional_probs)
+        sbn.normalize()
+        print(sbn.penalize(1.0))
+        print(sbn.penalize(0.1))
+
+    def test_penalty_gradient(self):
+        pcsp_conditional_probs = {
+            PCSP(Subsplit("ABCD"), Subsplit("AB", "CD")): 0.4,
+            PCSP(Subsplit("ABCD"), Subsplit("ABC", "D")): 0.6,
+            PCSP(Subsplit("ABC", "D"), Subsplit("AB", "C")): 2 / 3,
+            PCSP(Subsplit("ABC", "D"), Subsplit("A", "BC")): 1 / 3,
+            PCSP(Subsplit("AB", "CD"), Subsplit("A", "B")): 1.0,
+            PCSP(Subsplit("AB", "C"), Subsplit("A", "B")): 1.0,
+            PCSP(Subsplit("A", "BC"), Subsplit("B", "C")): 1.0,
+            PCSP(Subsplit("AB", "CD"), Subsplit("C", "D")): 1.0,
+        }
+        sbn = SBN(pcsp_conditional_probs)
+        sbn.normalize()
+        print(sbn.penalty_gradient(1.0))
+
+    def test_gradient_descent_pen(self):
+        taxon_set = "ABCDEF"
+        restrictions = ["ABCDE", "BCDEF"]
+        penalty = 0.1
+        max_iter = 50
+        true_sbn = SBN.random_with_sparsity(taxon_set=taxon_set, sparsity=0.7)
+        restricted_sbns = [true_sbn.restrict(restriction) for restriction in restrictions]
+        restricted_supports = [restricted_sbn.support() for restricted_sbn in restricted_sbns]
+        mutual_support = restricted_supports[0].mutualize(restricted_supports[1])
+        mutual_support = mutual_support.prune()
+        self.assertTrue(mutual_support.is_complete())
+        starting_sbn = SBN.random_from_support(mutual_support, concentration=10.0)
+        starting_kl = sum(restricted_sbn.kl_divergence(starting_sbn.restrict(restricted_sbn.root_clade()))
+                          for restricted_sbn in restricted_sbns)
+        starting_penalty = starting_sbn.penalize(penalty)
+        starting_loss = starting_kl + starting_penalty
+        final_sbn, loss_list, true_kl_list = starting_sbn.gradient_descent_pen(
+            references=restricted_sbns, penalty=penalty, true_reference=true_sbn, max_iteration=max_iter
+        )
+        self.assertAlmostEqual(starting_loss, loss_list[0])
+        self.assertGreater(starting_loss, loss_list[-1])
+        print("Loss list:")
+        print(loss_list)
+        print("True KL list:")
+        print(true_kl_list)
 
 
 if __name__ == '__main__':

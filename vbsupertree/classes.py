@@ -2734,7 +2734,7 @@ class SBN:
         return result
 
     def restricted_kl_gradient_multi(self, others: List['SBN'], weights: List[float] = None,
-                                     transit: dict = None, restricted_selves: List['SBN'] = None):
+                                     transit: dict = None, restricted_selves: List['SBN'] = None, verbose=False):
         if weights is None:
             weights = [1] * len(others)
         if restricted_selves is None:
@@ -2744,14 +2744,123 @@ class SBN:
                 restricted_selves.append(self.restrict(restriction))
         if not (len(others) == len(weights) == len(restricted_selves)):
             raise ValueError("Argument 'others', 'weights', and 'restricted_selves' not equal length or None.")
+        if verbose:
+            print("Checking for transit probabilities...")
         if transit is None:
+            if verbose:
+                print("Transit probabilities missing, calculating...")
             transit = self.transit_probabilities()
+        if verbose:
+            print("Transit probabilities found...")
         result = dict()
         for other, weight, restricted_self in zip(others, weights, restricted_selves):
+            if verbose:
+                print("Starting to examine reference with tip set ", other.root_clade())
+                print("Calculating gradient...")
             grad = self.restricted_kl_gradient(other=other, transit=transit, restricted_self=restricted_self)
             for wrt in grad:
+                if verbose:
+                    print("  Examining parameter ", wrt)
                 result[wrt] = result.get(wrt, 0.0) + grad[wrt] * weight
         return result
+
+    def penalize(self, penalty: float):
+        result = 0.0
+        for parent_clade in self.iter_parents():
+            dist = self.get(parent_clade)
+            params_np = np.array(list(dist.params.values()))
+            contrib = 0.5*penalty*np.sum((params_np - np.mean(params_np))**2)
+            result += contrib
+        return result
+
+    def penalty_gradient(self, penalty: float):
+        means = dict()
+        for parent_clade in self.iter_parents():
+            dist = self.get(parent_clade)
+            params_np = np.array(list(dist.params.values()))
+            means[parent_clade] = np.mean(params_np)
+        result = dict()
+        for pcsp in self.iter_pcsp():
+            parent_clade = pcsp.parent_clade()
+            mean = means.get(parent_clade)
+            param = self.get_log(pcsp)
+            result[pcsp] = penalty*(param - mean)
+        return result
+
+    def gradient_descent_pen(self, references: List['SBN'], penalty=0.0, starting_gamma=1.0, true_reference: 'SBN' = None,
+                             max_iteration=50, verbose=True, const=0.5, shrink_factor=0.5, grow_factor=1.1):
+        weights = [1] * len(references)
+        restrictions = [reference.root_clade() for reference in references]
+        current = self.copy()
+        current_rs = [current.restrict(restriction) for restriction in restrictions]
+
+        current_kl = sum(weight * reference.kl_divergence(current_r) for (weight, reference, current_r) in
+                         zip(weights, references, current_rs))
+        current_penalty = current.penalize(penalty)
+        current_loss = current_kl + current_penalty
+
+        current_transit = current.transit_probabilities()
+
+        current_kl_grad = current.restricted_kl_gradient_multi(others=references, weights=weights,
+                                                               transit=current_transit, restricted_selves=current_rs)
+        current_penalty_grad = current.penalty_gradient(penalty)
+        current_grad = {pcsp: current_kl_grad[pcsp] + current_penalty_grad[pcsp] for pcsp in current_kl_grad}
+        current_grad_l2 = l2norm2(current_grad)
+
+        gamma = starting_gamma
+        loss_list = [current_loss]
+        if true_reference is not None:
+            true_kl_list = [true_reference.kl_divergence(current)]
+
+        iteration = 0
+        if verbose:
+            print(f"Iter {iteration}: KL={current_loss:8.4g}")
+
+        while iteration < max_iteration:
+            iteration += 1
+            candidate = current.copy()
+            candidate.add_many_log(current_grad, -gamma)
+            candidate.normalize()
+            candidate_rs = [candidate.restrict(restriction) for restriction in restrictions]
+            candidate_kl = sum(weight * reference.kl_divergence(candidate_r) for (weight, reference, candidate_r) in
+                               zip(weights, references, candidate_rs))
+            candidate_penalty = candidate.penalize(penalty)
+            candidate_loss = candidate_kl + candidate_penalty
+
+            if verbose:
+                print(f"Iter {iteration}: KL={candidate_loss:8.4g}")
+            # Armijo-Goldstein condition:
+            # see https://math.stackexchange.com/questions/373868/optimal-step-size-in-gradient-descent
+            if candidate_loss <= current_loss - const * gamma * current_grad_l2:
+                gamma = gamma * grow_factor
+            else:
+                gamma = gamma * shrink_factor
+                if verbose:
+                    print(f"Shrinking gamma to {gamma}")
+            if candidate_loss <= current_loss:
+                current = candidate
+                current_rs = candidate_rs
+                current_loss = candidate_loss
+                current_transit = current.transit_probabilities()
+                current_kl_grad = current.restricted_kl_gradient_multi(others=references, weights=weights,
+                                                                       transit=current_transit,
+                                                                       restricted_selves=current_rs)
+                current_penalty_grad = current.penalty_gradient(penalty)
+                current_grad = {pcsp: current_kl_grad[pcsp] + current_penalty_grad[pcsp] for pcsp in current_kl_grad}
+                current_grad_l2 = l2norm2(current_grad)
+                # if verbose:
+                #     print("Move accepted")
+            else:
+                if verbose:
+                    print("Move rejected!")
+            loss_list.append(current_loss)
+            if true_reference is not None:
+                true_kl_list.append(true_reference.kl_divergence(current))
+        if verbose:
+            print(f"Final KL={current_loss:8.4g}")
+        if true_reference is not None:
+            return current, loss_list, true_kl_list
+        return current, loss_list
 
     @staticmethod
     def random(taxon_set, concentration=1.0, cutoff=0.0):
